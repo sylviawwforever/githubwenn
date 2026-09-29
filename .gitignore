@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.ipynb_checkpoints/
+node_modules/
+
+data/raw/*
+!data/raw/sample_week.csv
+data/processed/analyzed_*
+data/processed/cache/*
+data/processed/history/*
+!data/processed/history/.gitkeep
+output/reports/*
+output/charts/*
+!output/reports/.gitkeep
+!output/charts/.gitkeep
