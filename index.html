@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我的个人主页</title>
+<style>
+  /* ====== 可修改区：颜色 / 头像 / 文字 ====== */
+  :root {
+    --color-primary: #4f6ef7;      /* 主色调 */
+    --color-primary-soft: #eef1ff; /* 主色浅底 */
+    --color-text: #1f2430;         /* 正文颜色 */
+    --color-muted: #6b7280;        /* 次要文字 */
+    --color-bg: #ffffff;           /* 背景 */
+    --color-card: #f7f8fc;         /* 卡片背景 */
+    --avatar: url("avatar.JPG");   /* 头像图片 */
+    --avatar-size: 160px;          /* 头像显示尺寸 */
+    --avatar-pos: 50% 18%;         /* 头像显示位置：左右 上下（数值越小越靠上，露头越多） */
+    --avatar-zoom: 1;              /* 头像缩放：大于 1 放大，可调整露出头部与肩部 */
+    --radius: 16px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--color-text);
+    background: var(--color-bg);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* 每一屏 */
+  .screen {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 64px 24px;
+  }
+
+  .screen--alt { background: var(--color-card); }
+
+  .container { width: 100%; max-width: 640px; }
+
+  /* ====== 第一屏：关于我 ====== */
+  .avatar {
+    width: var(--avatar-size);
+    height: var(--avatar-size);
+    border-radius: 50%;
+    overflow: hidden;
+    border: 4px solid var(--color-bg);
+    box-shadow: 0 8px 30px rgba(79, 110, 247, .25);
+    margin: 0 auto 24px;
+  }
+
+  .avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: var(--avatar-pos);
+    transform: scale(var(--avatar-zoom));
+    transform-origin: var(--avatar-pos);
+    display: block;
+  }
+
+  .name {
+    font-size: 2rem;
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: 1px;
+  }
+
+  .tagline {
+    text-align: center;
+    color: var(--color-muted);
+    font-size: 1.05rem;
+    margin-top: 8px;
+  }
+
+  .badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 24px;
+  }
+
+  .badge {
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+    padding: 6px 16px;
+    border-radius: 999px;
+    font-size: .9rem;
+    font-weight: 500;
+  }
+
+  .section-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 36px 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-title::before {
+    content: "";
+    width: 4px;
+    height: 18px;
+    border-radius: 2px;
+    background: var(--color-primary);
+  }
+
+  .info-card {
+    background: var(--color-bg);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    box-shadow: 0 2px 12px rgba(31, 36, 48, .06);
+    font-size: .98rem;
+  }
+
+  .screen--alt .info-card { background: #fff; }
+
+  /* 工作 / 实习经历 */
+  .exp-list { padding: 6px 20px; }
+
+  .exp-item {
+    padding: 14px 0;
+    border-bottom: 1px solid var(--color-primary-soft);
+  }
+
+  .exp-item:last-child { border-bottom: none; }
+
+  .exp-date {
+    font-size: .82rem;
+    color: var(--color-primary);
+    font-weight: 600;
+    letter-spacing: .3px;
+  }
+
+  .exp-org { font-weight: 600; margin-top: 2px; }
+
+  .exp-role { font-size: .92rem; color: var(--color-muted); margin-top: 2px; }
+
+  /* ====== 第二屏：学习记录时间线 ====== */
+  .timeline { position: relative; margin-top: 24px; }
+
+  .timeline::before {
+    content: "";
+    position: absolute;
+    left: 9px;
+    top: 6px;
+    bottom: 6px;
+    width: 2px;
+    background: var(--color-primary-soft);
+  }
+
+  .timeline-item {
+    position: relative;
+    padding-left: 40px;
+    margin-bottom: 28px;
+  }
+
+  .timeline-item:last-child { margin-bottom: 0; }
+
+  .timeline-dot {
+    position: absolute;
+    left: 2px;
+    top: 6px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    border: 3px solid var(--color-card);
+    box-shadow: 0 0 0 2px var(--color-primary-soft);
+  }
+
+  .timeline-title { font-weight: 600; font-size: 1.05rem; }
+
+  .timeline-desc {
+    color: var(--color-muted);
+    font-size: .95rem;
+    margin-top: 2px;
+  }
+
+  .footer {
+    text-align: center;
+    color: var(--color-muted);
+    font-size: .85rem;
+    margin-top: 40px;
+  }
+
+  /* ====== 右上角天气 ====== */
+  .weather {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-primary-soft);
+    border-radius: 999px;
+    padding: 8px 16px;
+    box-shadow: 0 4px 16px rgba(79, 110, 247, .15);
+    font-size: .9rem;
+    color: var(--color-text);
+    backdrop-filter: blur(6px);
+  }
+
+  .weather__icon { font-size: 1.2rem; line-height: 1; }
+
+  .weather__temp { font-weight: 700; color: var(--color-primary); }
+
+  .weather__city { color: var(--color-muted); }
+
+  /* ====== 第三屏：去除图片背景 ====== */
+  .remover { margin-top: 28px; }
+
+  .dropzone {
+    border: 2px dashed var(--color-primary-soft);
+    background: var(--color-bg);
+    border-radius: var(--radius);
+    padding: 40px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s, transform .2s;
+    color: var(--color-muted);
+  }
+
+  .dropzone:hover,
+  .dropzone.is-drag {
+    border-color: var(--color-primary);
+    background: var(--color-primary-soft);
+    transform: translateY(-2px);
+  }
+
+  .dropzone__icon { font-size: 2.2rem; }
+  .dropzone__main { color: var(--color-text); font-weight: 600; margin-top: 8px; }
+  .dropzone__hint { font-size: .85rem; margin-top: 4px; }
+
+  .dropzone.has-image { padding: 0; border-style: solid; overflow: hidden; }
+  .dropzone.has-image .dropzone__inner { display: none; }
+  .dropzone > img { display: none; }
+  .dropzone.has-image img { width: 100%; max-height: 300px; object-fit: contain; display: block; }
+
+  .actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 20px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    border: none;
+    border-radius: 999px;
+    padding: 12px 28px;
+    font-size: .98rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .2s, transform .1s, background .2s;
+    font-family: inherit;
+  }
+
+  .btn:active { transform: scale(.97); }
+
+  .btn--primary { background: var(--color-primary); color: #fff; }
+  .btn--primary:hover { opacity: .9; }
+
+  .btn--ghost {
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+  }
+
+  .btn:disabled {
+    background: #c7cdd9;
+    color: #eef1f7;
+    cursor: not-allowed;
+    opacity: 1;
+    transform: none;
+  }
+
+  .status {
+    text-align: center;
+    margin-top: 16px;
+    font-size: .92rem;
+    min-height: 1.4em;
+  }
+
+  .status.is-error { color: #d64545; }
+  .status.is-busy { color: var(--color-primary); }
+
+  .compare {
+    display: none;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 28px;
+  }
+
+  .compare.show { display: grid; }
+
+  .compare__panel {
+    background: var(--color-bg);
+    border: 1px solid var(--color-primary-soft);
+    border-radius: var(--radius);
+    padding: 12px;
+    text-align: center;
+  }
+
+  .compare__label {
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--color-muted);
+    margin-bottom: 8px;
+  }
+
+  .compare__panel img {
+    width: 100%;
+    border-radius: 10px;
+    display: block;
+    background:
+      conic-gradient(#e9ecf3 25%, #fff 0 50%, #e9ecf3 0 75%, #fff 0) 0 0/20px 20px;
+  }
+
+  .download { text-align: center; margin-top: 18px; display: none; }
+  .download.show { display: block; }
+
+  @media (max-width: 480px) {
+    .name { font-size: 1.6rem; }
+    .avatar { --avatar-size: 130px; }
+    .screen { padding: 48px 18px; }
+    .weather { top: 12px; right: 12px; padding: 6px 12px; font-size: .8rem; }
+    .compare { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- ====== 右上角天气（北京） ====== -->
+  <div class="weather" id="weather">
+    <span class="weather__icon">🌤️</span>
+    <span class="weather__temp" id="weather-temp">--°C</span>
+    <span class="weather__city">北京</span>
+  </div>
+
+  <!-- ====== 第一屏：关于我 ====== -->
+  <section class="screen">
+    <div class="container">
+      <div class="avatar"><img src="avatar.JPG" alt="王诗雯"></div>
+      <h1 class="name">王诗雯</h1>
+      <p class="tagline">一句话介绍：热爱学习、持续成长的人。</p>
+
+      <div class="badges">
+        <span class="badge">中国传媒大学</span>
+        <span class="badge">新闻与传播</span>
+        <span class="badge">网络舆情</span>
+      </div>
+
+      <h2 class="section-title">学校与专业</h2>
+      <div class="info-card">
+        中国传媒大学 · 新闻与传播 · 网络舆情
+      </div>
+
+      <h2 class="section-title">工作经历</h2>
+      <div class="info-card exp-list">
+        <div class="exp-item">
+          <div class="exp-date">2024.08 – 2025.06</div>
+          <div class="exp-org">中国电子科技集团</div>
+          <div class="exp-role">芯片项目运营</div>
+        </div>
+      </div>
+
+      <h2 class="section-title">实习经历</h2>
+      <div class="info-card exp-list">
+        <div class="exp-item">
+          <div class="exp-date">2025.12.23 – 2026.01.23</div>
+          <div class="exp-org">铁岭市融媒体中心</div>
+        </div>
+        <div class="exp-item">
+          <div class="exp-date">2023.06.30 – 2023.09.30</div>
+          <div class="exp-org">首都版权协会</div>
+        </div>
+        <div class="exp-item">
+          <div class="exp-date">2022.09.10 – 2022.12.20</div>
+          <div class="exp-org">国际科学与和平周中国组织委员会</div>
+        </div>
+      </div>
+
+      <h2 class="section-title">兴趣爱好</h2>
+      <div class="info-card">
+        编程、阅读、摄影、旅行 —— 在这里填写你的兴趣爱好。
+      </div>
+
+      <h2 class="section-title">学习目标</h2>
+      <div class="info-card">
+        掌握 Python 爬虫与数据分析，能够独立完成一个完整的网页项目，并持续积累个人作品。
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== 第二屏：我的学习记录 ====== -->
+  <section class="screen screen--alt">
+    <div class="container">
+      <h2 class="name" style="font-size:1.5rem;">我的学习记录</h2>
+      <p class="tagline">记录每一步成长</p>
+
+      <div class="timeline">
+        <!-- 复制下面这个 timeline-item 即可增加新的学习记录 -->
+        <div class="timeline-item">
+          <span class="timeline-dot"></span>
+          <div class="timeline-title">爬虫抓取</div>
+          <div class="timeline-desc">学习了网络请求与数据解析，实现简单的网页爬虫。</div>
+        </div>
+
+        <div class="timeline-item">
+          <span class="timeline-dot"></span>
+          <div class="timeline-title">我的个人主页</div>
+          <div class="timeline-desc">使用 HTML 与 CSS 制作了响应式个人网页。</div>
+        </div>
+
+        <div class="timeline-item">
+          <span class="timeline-dot"></span>
+          <div class="timeline-title">第一次 API 调用</div>
+          <div class="timeline-desc">调用 Open-Meteo API，在网页右上角展示北京实时天气。</div>
+        </div>
+
+        <div class="timeline-item">
+          <span class="timeline-dot"></span>
+          <div class="timeline-title">一键去除图片背景</div>
+          <div class="timeline-desc">用 Node.js + Express 后端调用 Replicate 模型，实现 AI 自动抠图。</div>
+        </div>
+      </div>
+
+      <p class="footer">© 2026 我的个人主页</p>
+    </div>
+  </section>
+
+  <!-- ====== 第三屏：一键去除图片背景 ====== -->
+  <section class="screen">
+    <div class="container">
+      <h2 class="name" style="font-size:1.5rem;">一键去除图片背景</h2>
+      <p class="tagline">上传图片，AI 自动抠出主体</p>
+
+      <div class="remover">
+        <label class="dropzone" id="dropzone" for="fileInput">
+          <input type="file" id="fileInput" accept="image/*" hidden>
+          <div class="dropzone__inner">
+            <div class="dropzone__icon">🖼️</div>
+            <div class="dropzone__main">点击或拖拽图片到这里</div>
+            <div class="dropzone__hint">支持 JPG / PNG，最大 10MB</div>
+          </div>
+          <img id="preview" alt="预览">
+        </label>
+
+        <div class="actions">
+          <button class="btn btn--primary" id="removeBtn" disabled>去除背景</button>
+          <button class="btn btn--ghost" id="resetBtn" hidden>重新选择</button>
+        </div>
+
+        <div class="status" id="status"></div>
+
+        <div class="compare" id="compare">
+          <div class="compare__panel">
+            <div class="compare__label">原图</div>
+            <img id="originImg" alt="原图">
+          </div>
+          <div class="compare__panel">
+            <div class="compare__label">去除背景</div>
+            <img id="resultImg" alt="去除背景结果">
+          </div>
+        </div>
+
+        <div class="download" id="downloadWrap">
+          <a class="btn btn--primary" id="downloadLink" download="no-bg.png">下载结果</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    // ====== 北京天气：Open-Meteo API（无需 Key） ======
+    const BEIJING = { lat: 39.9042, lon: 116.4074 };
+
+    // 天气代码 -> 图标
+    const WEATHER_ICONS = {
+      0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️",
+      45: "🌫️", 48: "🌫️",
+      51: "🌦️", 53: "🌦️", 55: "🌦️",
+      61: "🌧️", 63: "🌧️", 65: "🌧️",
+      71: "🌨️", 73: "🌨️", 75: "🌨️",
+      80: "🌦️", 81: "🌧️", 82: "⛈️",
+      95: "⛈️", 96: "⛈️", 99: "⛈️"
+    };
+
+    async function loadWeather() {
+      const tempEl = document.getElementById("weather-temp");
+      const iconEl = document.querySelector(".weather__icon");
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${BEIJING.lat}&longitude=${BEIJING.lon}&current=temperature_2m,weather_code&timezone=Asia%2FShanghai`;
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        const temp = Math.round(data.current.temperature_2m);
+        tempEl.textContent = `${temp}°C`;
+        iconEl.textContent = WEATHER_ICONS[data.current.weather_code] || "🌡️";
+      } catch (e) {
+        tempEl.textContent = "天气获取失败";
+      }
+    }
+
+    loadWeather();
+    setInterval(loadWeather, 10 * 60 * 1000); // 每 10 分钟刷新
+
+    // ====== 一键去除图片背景 ======
+    // 双击打开(file://)时，指向本地后端；用 localhost 访问时走同源
+    const API_BASE =
+      location.protocol === "file:" ? "http://localhost:3000" : "";
+    const dropzone = document.getElementById("dropzone");
+    const fileInput = document.getElementById("fileInput");
+    const preview = document.getElementById("preview");
+    const removeBtn = document.getElementById("removeBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const statusEl = document.getElementById("status");
+    const compare = document.getElementById("compare");
+    const originImg = document.getElementById("originImg");
+    const resultImg = document.getElementById("resultImg");
+    const downloadWrap = document.getElementById("downloadWrap");
+    const downloadLink = document.getElementById("downloadLink");
+
+    let currentFile = null;
+
+    function setStatus(text, type = "") {
+      statusEl.textContent = text;
+      statusEl.className = "status" + (type ? " is-" + type : "");
+    }
+
+    function loadFile(file) {
+      if (!file) return;
+      if (!file.type.startsWith("image/")) {
+        setStatus("请选择图片文件", "error");
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        setStatus("图片太大，最大 10MB", "error");
+        return;
+      }
+      currentFile = file;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        preview.src = e.target.result;
+        originImg.src = e.target.result;
+        dropzone.classList.add("has-image");
+        removeBtn.disabled = false;
+        resetBtn.hidden = false;
+        compare.classList.remove("show");
+        downloadWrap.classList.remove("show");
+        setStatus("图片已就绪，点击「去除背景」开始");
+      };
+      reader.readAsDataURL(file);
+    }
+
+    fileInput.addEventListener("change", () => loadFile(fileInput.files[0]));
+
+    ["dragover", "dragenter"].forEach((ev) =>
+      dropzone.addEventListener(ev, (e) => {
+        e.preventDefault();
+        dropzone.classList.add("is-drag");
+      })
+    );
+    ["dragleave", "drop"].forEach((ev) =>
+      dropzone.addEventListener(ev, (e) => {
+        e.preventDefault();
+        dropzone.classList.remove("is-drag");
+      })
+    );
+    dropzone.addEventListener("drop", (e) => {
+      const file = e.dataTransfer.files[0];
+      loadFile(file);
+    });
+
+    resetBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      currentFile = null;
+      fileInput.value = "";
+      dropzone.classList.remove("has-image");
+      removeBtn.disabled = true;
+      resetBtn.hidden = true;
+      compare.classList.remove("show");
+      downloadWrap.classList.remove("show");
+      setStatus("");
+    });
+
+    removeBtn.addEventListener("click", async () => {
+      if (!currentFile) return;
+      removeBtn.disabled = true;
+      removeBtn.textContent = "处理中…";
+      resetBtn.disabled = true;
+      setStatus("AI 正在处理，请稍候…", "busy");
+      compare.classList.remove("show");
+      downloadWrap.classList.remove("show");
+
+      const form = new FormData();
+      form.append("image", currentFile);
+
+      try {
+        const res = await fetch(API_BASE + "/api/remove-bg", {
+          method: "POST",
+          body: form,
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "处理失败");
+
+        resultImg.src = data.result;
+        compare.classList.add("show");
+        downloadLink.href = data.result;
+        downloadWrap.classList.add("show");
+        setStatus("完成！可以下载结果了");
+      } catch (err) {
+        let msg = err.message || "处理失败，请稍后重试";
+        if (err.name === "TypeError" || /Failed to fetch|NetworkError/i.test(msg)) {
+          msg =
+            "无法连接后端服务。请先在项目文件夹运行 npm start，" +
+            "再访问 http://localhost:3000（直接双击 HTML 无法使用该功能）";
+        }
+        setStatus(msg, "error");
+      } finally {
+        removeBtn.disabled = false;
+        removeBtn.textContent = "去除背景";
+        resetBtn.disabled = false;
+      }
+    });
+  </script>
+
+</body>
+</html>
