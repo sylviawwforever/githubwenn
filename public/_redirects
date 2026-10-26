@@ -1,0 +1,3 @@
+/api/link-preview  /.netlify/functions/link-preview  200
+/api/health  /.netlify/functions/health  200
+/api/analyze-food  /.netlify/functions/analyze-food  200

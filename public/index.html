@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>About Me · 我的生活记录</title>
+<link rel="icon" href="data:," />
+<script>
+  /* 若用 file:// 直接打开，自动跳转到后端地址，避免“离线模式”无法登录/发码/识别 */
+  if (location.protocol === 'file:') {
+    location.replace('http://localhost:3000/' + location.hash);
+  }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ===================== TOP NAV ===================== -->
+<header class="nav">
+  <div class="nav__inner">
+    <a class="logo" href="#" data-view="home">
+      <span class="logo__badge"><i class="fa-solid fa-mug-hot"></i></span>
+      <span class="logo__text">About&nbsp;Me</span>
+    </a>
+    <nav class="nav__links">
+      <a href="#" data-view="home"><i class="fa-solid fa-house"></i> 首页</a>
+      <a href="#" data-view="myself"><i class="fa-solid fa-user"></i> Myself</a>
+      <a href="#" data-view="friends"><i class="fa-solid fa-user-group"></i> With Friends</a>
+    </nav>
+    <div class="nav__right">
+      <span class="conn-dot" id="connDot" title="后端连接状态"></span>
+      <button class="btn btn--dark" id="loginBtn">
+        <i class="fa-solid fa-mobile-screen"></i> <span id="loginLabel">登录</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+
+  <!-- ===================== HOME (landing + illustration) ===================== -->
+  <section class="view is-active" id="view-home">
+    <div class="hero hero--landing">
+      <div class="float-stickers" aria-hidden="true">
+        <span class="sticker-chip sticker-chip--a"><i class="fa-solid fa-mug-hot"></i> daily journal</span>
+        <span class="sticker-chip sticker-chip--b"><i class="fa-solid fa-heart"></i> about me</span>
+        <span class="sticker-chip sticker-chip--c"><i class="fa-solid fa-star"></i> cozy notes</span>
+        <span class="sticker-chip sticker-chip--d"><i class="fa-solid fa-leaf"></i> slow living</span>
+      </div>
+
+      <p class="hero__eyebrow">Warm café chalkboard · daily life journal</p>
+      <h1 class="display hero__title">About Me</h1>
+      <p class="hero__hi">你好，<span id="heroName">朋友</span> 👋 欢迎来到我的小空间</p>
+      <p class="hero__sub">在这里记录每一天的生活，和朋友一起分享想买的东西、想去的地方。</p>
+      <div class="hero__cta">
+        <button class="btn btn--blue" type="button" data-view="myself">
+          <i class="fa-solid fa-pen-nib"></i> 开始记录
+        </button>
+        <button class="btn btn--outline" type="button" data-view="friends">
+          With Friends
+        </button>
+      </div>
+
+      <div class="hero-illu" id="heroIllu">
+        <svg viewBox="0 0 860 400" role="img" aria-label="咖啡馆插画：幽灵、爱心、咖啡豆和热咖啡">
+          <g class="layer layer-back" fill="none" stroke="#000" stroke-width="3" opacity=".12">
+            <ellipse class="orbit" cx="430" cy="210" rx="310" ry="128"/>
+            <ellipse class="orbit slow" cx="430" cy="214" rx="250" ry="96"/>
+          </g>
+
+          <g class="layer layer-back">
+            <path class="sparkle s1" d="M78 86 l5 16 16 5 -16 5 -5 16 -5 -16 -16 -5 16 -5z" fill="#aac9f7" stroke="#000" stroke-width="3.5" stroke-linejoin="round"/>
+            <path class="sparkle s2" d="M790 64 l4 12 12 4 -12 4 -4 12 -4 -12 -12 -4 12 -4z" fill="#e9dfd2" stroke="#000" stroke-width="3.5" stroke-linejoin="round"/>
+            <path class="sparkle s3" d="M248 42 l3 10 10 3 -10 3 -3 10 -3 -10 -10 -3 10 -3z" fill="#e0607b" stroke="#000" stroke-width="3" stroke-linejoin="round"/>
+            <path class="sparkle s4" d="M692 168 l4 12 12 4 -12 4 -4 12 -4 -12 -12 -4 12 -4z" fill="#aac9f7" stroke="#000" stroke-width="3.5" stroke-linejoin="round"/>
+            <circle class="sparkle s5" cx="168" cy="148" r="6" fill="#cdeedb" stroke="#000" stroke-width="3.5"/>
+            <circle class="sparkle s6" cx="812" cy="214" r="5" fill="#aac9f7" stroke="#000" stroke-width="3"/>
+          </g>
+
+          <g class="layer layer-mid">
+            <g transform="translate(548,8)">
+              <g class="bob">
+                <rect x="0" y="18" width="148" height="64" rx="18" fill="#202020" stroke="#000" stroke-width="5"/>
+                <rect x="10" y="28" width="128" height="44" rx="12" fill="#e9dfd2"/>
+                <text x="74" y="56" text-anchor="middle" font-family="Bowlby One, sans-serif" font-size="20" fill="#202020">café</text>
+                <rect x="62" y="0" width="22" height="20" rx="6" fill="#e0955b" stroke="#000" stroke-width="4"/>
+              </g>
+            </g>
+          </g>
+
+          <g class="layer layer-front">
+            <g transform="translate(48,78)">
+              <g class="float">
+                <path d="M54 18 a46 46 0 0 1 92 0 v78 q-12 18 -23 2 q-12 18 -23 2 q-12 18 -23 2 q-12 18 -23 2 z" fill="#aac9f7" stroke="#000" stroke-width="5" stroke-linejoin="round"/>
+                <ellipse class="eye" cx="82" cy="62" rx="7" ry="8" fill="#000"/>
+                <ellipse class="eye delay" cx="118" cy="62" rx="7" ry="8" fill="#000"/>
+                <path d="M88 86 q16 14 32 0" fill="none" stroke="#000" stroke-width="4.5" stroke-linecap="round"/>
+                <circle cx="70" cy="78" r="7" fill="#e0607b" opacity=".75"/>
+                <circle cx="130" cy="78" r="7" fill="#e0607b" opacity=".75"/>
+                <g class="arm">
+                  <path d="M146 88 q28 -6 34 18" fill="none" stroke="#000" stroke-width="7" stroke-linecap="round"/>
+                  <circle cx="182" cy="108" r="8" fill="#aac9f7" stroke="#000" stroke-width="4"/>
+                </g>
+              </g>
+            </g>
+          </g>
+
+          <g class="layer layer-mid">
+            <g transform="translate(196,168) scale(3.35)">
+              <g class="float slow">
+                <path d="M16,28.8 C16,28.8 0,19 0,9.7 C0,4.5 4.2,0.3 9.3,0.3 C12.6,0.3 15.3,2.1 16,3.3 C16.7,2.1 19.4,0.3 22.7,0.3 C27.8,0.3 32,4.5 32,9.7 C32,19 16,28.8 16,28.8 Z" fill="#e9dfd2" stroke="#000" stroke-width="1.55" stroke-linejoin="round"/>
+                <ellipse class="eye" cx="11" cy="12" rx="1.7" ry="1.9" fill="#000"/>
+                <ellipse class="eye delay" cx="21" cy="12" rx="1.7" ry="1.9" fill="#000"/>
+                <path d="M12.5 17.5 q3.5 3.6 7 0" fill="none" stroke="#000" stroke-width="1.4" stroke-linecap="round"/>
+                <circle cx="6.5" cy="15" r="1.7" fill="#e0607b" opacity=".7"/>
+                <circle cx="25.5" cy="15" r="1.7" fill="#e0607b" opacity=".7"/>
+              </g>
+            </g>
+          </g>
+
+          <g class="layer layer-front">
+            <g class="bob">
+              <path class="steam st1" d="M404 118 q-12 -28 6 -52" fill="none" stroke="#000" stroke-width="5.5" stroke-linecap="round"/>
+              <path class="steam st2" d="M444 118 q-10 -26 7 -50" fill="none" stroke="#000" stroke-width="5.5" stroke-linecap="round"/>
+              <path class="steam st3" d="M476 122 q-8 -22 6 -42" fill="none" stroke="#000" stroke-width="5" stroke-linecap="round"/>
+              <path d="M538 176 q62 -2 62 40 q0 44 -62 40" fill="none" stroke="#000" stroke-width="6"/>
+              <rect x="368" y="132" width="170" height="142" rx="34" fill="#aac9f7" stroke="#000" stroke-width="6"/>
+              <rect x="386" y="150" width="134" height="22" rx="11" fill="#e9dfd2" stroke="#000" stroke-width="4"/>
+              <path class="pulse" d="M453 196 c-11 -14 -30 -7 -30 10 c0 14 19 24 30 34 c11 -10 30 -20 30 -34 c0 -17 -19 -24 -30 -10z" fill="#e0607b" stroke="#000" stroke-width="4.5" stroke-linejoin="round"/>
+            </g>
+          </g>
+
+          <g class="layer layer-mid">
+            <g transform="translate(678,188) rotate(-16)">
+              <g class="float slow2">
+                <ellipse cx="0" cy="0" rx="54" ry="38" fill="#e9dfd2" stroke="#000" stroke-width="5.5"/>
+                <ellipse class="eye" cx="-15" cy="-6" rx="5.2" ry="5.6" fill="#000"/>
+                <ellipse class="eye delay" cx="17" cy="-6" rx="5.2" ry="5.6" fill="#000"/>
+                <path d="M-10 10 q10 10 20 0" fill="none" stroke="#000" stroke-width="4.5" stroke-linecap="round"/>
+              </g>
+            </g>
+          </g>
+
+          <g class="layer layer-front">
+            <g transform="translate(768,236)">
+              <g class="sway">
+                <path d="M0 8 q-6 -36 10 -54 q10 22 0 54z" fill="#9ed8a6" stroke="#000" stroke-width="4" stroke-linejoin="round"/>
+                <path d="M28 10 q18 -24 6 -52 q-22 14 -16 52z" fill="#cdeedb" stroke="#000" stroke-width="4" stroke-linejoin="round"/>
+              </g>
+              <path d="M-12 10 h56 l-8 34 h-40z" fill="#e0955b" stroke="#000" stroke-width="4.5" stroke-linejoin="round"/>
+            </g>
+          </g>
+
+          <g class="layer layer-front">
+            <g transform="translate(28,210)">
+              <g class="float slow">
+                <path d="M0 0 q32 -10 44 18 q-32 14 -48 -2 q-8 -11 4 -16z" fill="#9ed8a6" stroke="#000" stroke-width="4" stroke-linejoin="round"/>
+                <line x1="8" y1="10" x2="36" y2="16" stroke="#000" stroke-width="3.5" stroke-linecap="round"/>
+              </g>
+            </g>
+          </g>
+
+          <g class="layer layer-back">
+            <rect x="156" y="318" width="548" height="30" rx="15" fill="#e9dfd2" stroke="#000" stroke-width="5"/>
+            <g fill="#000" opacity=".18">
+              <circle cx="250" cy="368" r="4"/>
+              <circle cx="292" cy="372" r="3"/>
+              <circle cx="430" cy="370" r="4"/>
+              <circle cx="574" cy="372" r="3"/>
+              <circle cx="628" cy="368" r="4"/>
+            </g>
+          </g>
+        </svg>
+      </div>
+    </div>
+
+    <div class="entry-grid">
+      <button class="entry-card" data-view="myself">
+        <span class="entry-card__art entry-card__art--myself">
+          <svg viewBox="0 0 140 140" aria-hidden="true">
+            <g class="art-float">
+              <rect x="26" y="24" width="80" height="94" rx="20" fill="#fff" stroke="#000" stroke-width="5"/>
+              <line x1="44" y1="58" x2="94" y2="58" stroke="#000" stroke-width="5" stroke-linecap="round" opacity=".35"/>
+              <line x1="44" y1="76" x2="94" y2="76" stroke="#000" stroke-width="5" stroke-linecap="round" opacity=".35"/>
+              <line x1="44" y1="94" x2="78" y2="94" stroke="#000" stroke-width="5" stroke-linecap="round" opacity=".35"/>
+            </g>
+            <path class="pulse" d="M100 92 c4 -6 13 -3 13 4 c0 6 -8 10 -13 15 c-5 -5 -13 -9 -13 -15 c0 -7 9 -10 13 -4z" fill="#e0607b" stroke="#000" stroke-width="4" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <span class="entry-card__body">
+          <span class="entry-card__title">Myself</span>
+          <span class="entry-card__desc">待办 · 饮食 · 运动 · 记账 · 睡眠 · 目标 · 收藏 · 观影</span>
+          <span class="entry-card__cta">进入我的空间 <i class="fa-solid fa-arrow-right"></i></span>
+        </span>
+      </button>
+
+      <button class="entry-card" data-view="friends">
+        <span class="entry-card__art entry-card__art--friends">
+          <svg viewBox="0 0 140 140" aria-hidden="true">
+            <g transform="translate(20,40) scale(2.4)">
+              <g class="float">
+                <path d="M16,28.8 C16,28.8 0,19 0,9.7 C0,4.5 4.2,0.3 9.3,0.3 C12.6,0.3 15.3,2.1 16,3.3 C16.7,2.1 19.4,0.3 22.7,0.3 C27.8,0.3 32,4.5 32,9.7 C32,19 16,28.8 16,28.8 Z" fill="#aac9f7" stroke="#000" stroke-width="1.8" stroke-linejoin="round"/>
+                <circle cx="11" cy="12" r="1.7" fill="#000"/>
+                <circle cx="21" cy="12" r="1.7" fill="#000"/>
+                <path d="M12.5 17 q3.5 3.6 7 0" fill="none" stroke="#000" stroke-width="1.4" stroke-linecap="round"/>
+              </g>
+            </g>
+            <g transform="translate(64,48) scale(1.9)">
+              <g class="float slow">
+                <path d="M16,28.8 C16,28.8 0,19 0,9.7 C0,4.5 4.2,0.3 9.3,0.3 C12.6,0.3 15.3,2.1 16,3.3 C16.7,2.1 19.4,0.3 22.7,0.3 C27.8,0.3 32,4.5 32,9.7 C32,19 16,28.8 16,28.8 Z" fill="#e9dfd2" stroke="#000" stroke-width="1.8" stroke-linejoin="round"/>
+                <circle cx="11" cy="12" r="1.7" fill="#000"/>
+                <circle cx="21" cy="12" r="1.7" fill="#000"/>
+                <path d="M12.5 17 q3.5 3.6 7 0" fill="none" stroke="#000" stroke-width="1.4" stroke-linecap="round"/>
+              </g>
+            </g>
+            <path class="sparkle s3" d="M116 34 l2.6 8.4 8.4 2.6 -8.4 2.6 -2.6 8.4 -2.6 -8.4 -8.4 -2.6 8.4 -2.6z" fill="#e0607b" stroke="#000" stroke-width="2.6" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <span class="entry-card__body">
+          <span class="entry-card__title">With Friends</span>
+          <span class="entry-card__desc">分享 · 购物车 · Data</span>
+          <span class="entry-card__cta">和朋友一起 <i class="fa-solid fa-arrow-right"></i></span>
+        </span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ===================== MYSELF (overview page) ===================== -->
+  <section class="view" id="view-myself">
+    <button class="back-btn" data-view="home"><i class="fa-solid fa-arrow-left"></i> 返回首页</button>
+    <div class="section-head">
+      <h2 class="display">Myself</h2>
+      <p class="section-head__sub">记录关于自己的一切 · 点开任意卡片开始记录</p>
+    </div>
+
+    <div class="overview">
+      <article class="overview__item">
+        <span class="overview__icon" style="color:#5b8ee0"><i class="fa-solid fa-list-check"></i></span>
+        <span class="overview__text">
+          <span class="overview__num" id="statTodo">0</span>
+          <span class="overview__label">今日待办</span>
+        </span>
+      </article>
+      <article class="overview__item">
+        <span class="overview__icon" style="color:#e0955b"><i class="fa-solid fa-fire"></i></span>
+        <span class="overview__text">
+          <span class="overview__num" id="statIntake">0</span>
+          <span class="overview__label">今日摄入 kcal</span>
+        </span>
+      </article>
+      <article class="overview__item">
+        <span class="overview__icon" style="color:#5bb381"><i class="fa-solid fa-person-running"></i></span>
+        <span class="overview__text">
+          <span class="overview__num" id="statBurn">0</span>
+          <span class="overview__label">今日消耗 kcal</span>
+        </span>
+      </article>
+    </div>
+
+    <div class="module-grid module-grid--wide" id="myselfGrid"></div>
+  </section>
+
+  <!-- ===================== TODO ===================== -->
+  <section class="view" id="view-todo">
+    <button class="back-btn" data-view="myself"><i class="fa-solid fa-arrow-left"></i> 返回 Myself</button>
+    <div class="section-head">
+      <h2 class="display">每日待办</h2>
+      <p class="section-head__sub">写下所有要做的事，做完的<b>双击</b>即可划线并自动移到最后。</p>
+    </div>
+    <div class="panel">
+      <form class="input-row" id="todoForm">
+        <input class="pill-input" type="text" id="todoInput" placeholder="要做什么？例如：背 50 个单词……" autocomplete="off" />
+        <button class="btn btn--blue" type="submit"><i class="fa-solid fa-plus"></i> 添加</button>
+      </form>
+      <ul class="todo-list" id="todoList"></ul>
+      <p class="empty" id="todoEmpty">还没有待办，添加第一件事吧 ☕</p>
+      <div class="panel__foot">
+        <span id="todoProgress">0 / 0 已完成 · 双击待办可划线</span>
+        <div class="panel__foot-actions">
+          <button class="btn btn--ghost" id="todoHistoryBtn"><i class="fa-regular fa-calendar-days"></i> 历史待办</button>
+          <button class="btn btn--ghost" id="todoClear"><i class="fa-solid fa-trash-can"></i> 清除已完成</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== DIET ===================== -->
+  <section class="view" id="view-diet">
+    <button class="back-btn" data-view="myself"><i class="fa-solid fa-arrow-left"></i> 返回 Myself</button>
+    <div class="section-head">
+      <h2 class="display">每日饮食</h2>
+      <p class="section-head__sub">手动录入或拍照识别，饮品按糖度冰量自动算热量。</p>
+    </div>
+
+    <div class="tabs tabs--slim" role="tablist">
+      <button class="tab is-active" data-dmode="food"><i class="fa-solid fa-utensils"></i> 食物</button>
+      <button class="tab" data-dmode="drink"><i class="fa-solid fa-mug-saucer"></i> 饮品</button>
+      <button class="tab" data-dmode="custom"><i class="fa-solid fa-blender"></i> 自定义饮品</button>
+    </div>
+
+    <div class="two-col">
+      <div>
+        <!-- FOOD -->
+        <div class="panel dmode is-active" id="dmode-food">
+          <h3 class="panel__title"><i class="fa-solid fa-camera-retro"></i> 拍照识别 / 手动录入</h3>
+
+          <div class="photo-zone">
+            <input type="file" id="foodImage" accept="image/*" hidden />
+            <label for="foodImage" class="photo-drop" id="photoDrop">
+              <i class="fa-solid fa-camera"></i>
+              <span>点击上传或拖拽照片到此处</span>
+              <small class="photo-drop__tip">支持 JPG / PNG / HEIC 截图，拖进来即可</small>
+            </label>
+            <div class="photo-preview-wrap" id="photoPreviewWrap" hidden>
+              <img id="foodPreview" alt="食物预览" />
+              <button type="button" class="photo-clear" id="photoClear"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <button type="button" class="btn btn--blue" id="analyzeBtn" disabled style="width:100%">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> AI 识别热量
+            </button>
+            <p class="hint" id="analyzeHint">上传或拖入照片后点识别，会自动估算食物与热量。</p>
+            <div class="analyze-result" id="analyzeResult"></div>
+          </div>
+
+          <form id="dietForm" class="form-stack" style="margin-top:22px">
+            <label class="field">
+              <span>食物名称</span>
+              <input class="pill-input" type="text" id="dietName" list="foodList" placeholder="例如：米饭 / 鸡胸肉" autocomplete="off" required />
+              <datalist id="foodList"></datalist>
+            </label>
+            <div class="grid-2">
+              <label class="field">
+                <span>数量 / 单位</span>
+                <div class="diet-amount">
+                  <input class="pill-input" type="number" id="dietGrams" min="0" step="0.1" value="100" required />
+                  <select class="pill-input" id="dietUnit">
+                    <option value="克">克</option>
+                    <option value="份">份</option>
+                    <option value="个">个</option>
+                    <option value="杯">杯</option>
+                  </select>
+                </div>
+              </label>
+              <label class="field">
+                <span id="dietPerLabel">每克热量 kcal</span>
+                <input class="pill-input" type="number" id="dietKcalPer100" min="0" step="0.1" value="0" required />
+              </label>
+            </div>
+            <p class="hint" id="dietHint">选择常见食物会自动填充热量，也可手动修改。</p>
+            <button class="btn btn--blue" type="submit" style="width:100%"><i class="fa-solid fa-plus"></i> 添加到今日饮食</button>
+          </form>
+        </div>
+
+        <!-- DRINK -->
+        <div class="panel dmode" id="dmode-drink">
+          <h3 class="panel__title"><i class="fa-solid fa-mug-saucer"></i> 连锁饮品（自动算热量）</h3>
+          <form id="drinkForm" class="form-stack">
+            <label class="field">
+              <span>品牌</span>
+              <div class="brand-select" id="brandSelect">
+                <button type="button" class="brand-select__btn" id="brandBtn">
+                  <span class="brand-select__cur" id="brandCur"></span>
+                  <i class="fa-solid fa-chevron-down"></i>
+                </button>
+                <div class="brand-select__menu" id="brandMenu"></div>
+              </div>
+              <select id="drinkBrand" hidden></select>
+            </label>
+            <label class="field">
+              <span>单品</span>
+              <select class="pill-input" id="drinkItem"></select>
+            </label>
+            <div class="grid-2">
+              <label class="field">
+                <span>冰量</span>
+                <select class="pill-input" id="drinkIce"></select>
+              </label>
+              <label class="field">
+                <span>糖度</span>
+                <select class="pill-input" id="drinkSugar"></select>
+              </label>
+            </div>
+            <label class="field">
+              <span>加料 / 备注（可选）</span>
+              <input class="pill-input" type="text" id="drinkNote" placeholder="例如：加珍珠、椰果、去冰、少糖" autocomplete="off" />
+            </label>
+            <div class="topping-chips" id="toppingChips">
+              <button type="button" class="chip" data-adj="100">+ 珍珠 100</button>
+              <button type="button" class="chip" data-adj="50">+ 椰果 50</button>
+              <button type="button" class="chip" data-adj="90">+ 奶盖 90</button>
+              <button type="button" class="chip" data-adj="70">+ 布丁 70</button>
+              <button type="button" class="chip" data-adj="120">+ 芋泥 120</button>
+              <button type="button" class="chip" data-adj="-40">− 少糖 −40</button>
+              <button type="button" class="chip chip--reset" data-adj="reset">重置调整</button>
+            </div>
+            <label class="field">
+              <span>手动调整热量 kcal（加料填正数，减料填负数）</span>
+              <input class="pill-input" type="number" id="drinkAdjust" step="1" value="0" />
+            </label>
+            <div class="kcal-preview">
+              <span class="kcal-preview__num" id="drinkKcal">0</span>
+              <span class="kcal-preview__unit">kcal / 杯</span>
+            </div>
+            <p class="hint" id="drinkHint">热量随糖度、冰量自动折算；加料/减料可点上面的快捷按钮或手动调整，数据参考品牌标注与小红书笔记。</p>
+            <button class="btn btn--blue" type="submit" style="width:100%"><i class="fa-solid fa-plus"></i> 添加到今日饮食</button>
+          </form>
+        </div>
+
+        <!-- CUSTOM DRINK（非连锁 / 自制） -->
+        <div class="panel dmode" id="dmode-custom">
+          <h3 class="panel__title"><i class="fa-solid fa-blender"></i> 非连锁 · 自制饮品（手动填热量）</h3>
+          <form id="customDrinkForm" class="form-stack">
+            <label class="field">
+              <span>饮品名称</span>
+              <input class="pill-input" type="text" id="customDrinkName" placeholder="例如：自制柠檬水 / 街边奶茶 / 港式丝袜" required />
+            </label>
+            <div class="grid-2">
+              <label class="field">
+                <span>杯数</span>
+                <input class="pill-input" type="number" id="customDrinkQty" min="0" step="0.5" value="1" />
+              </label>
+              <label class="field">
+                <span>每杯热量 kcal</span>
+                <input class="pill-input" type="number" id="customDrinkKcal" min="0" step="1" value="0" required />
+              </label>
+            </div>
+            <label class="field">
+              <span>备注（可选）</span>
+              <input class="pill-input" type="text" id="customDrinkNote" placeholder="例如：加珍珠 +80、去糖、大杯" autocomplete="off" />
+            </label>
+            <div class="kcal-preview">
+              <span class="kcal-preview__num" id="customDrinkTotal">0</span>
+              <span class="kcal-preview__unit">kcal / 合计</span>
+            </div>
+            <p class="hint">非连锁/自制饮品手动填热量；加料减料可直接改「每杯热量」，或写进备注。</p>
+            <button class="btn btn--blue" type="submit" style="width:100%"><i class="fa-solid fa-plus"></i> 添加到今日饮食</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3 class="panel__title"><i class="fa-solid fa-chart-simple"></i> 今日摄入</h3>
+        <div class="big-number"><span id="dietTotal">0</span><small>kcal</small></div>
+        <ul class="record-list" id="dietList"></ul>
+        <p class="empty" id="dietEmpty">今天还没记录饮食 🍚</p>
+        <div class="panel__foot">
+          <span id="dietCount">共 0 条</span>
+          <button class="btn btn--ghost" id="dietClearAll"><i class="fa-solid fa-eraser"></i> 清空今日</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== EXERCISE ===================== -->
+  <section class="view" id="view-exercise">
+    <button class="back-btn" data-view="myself"><i class="fa-solid fa-arrow-left"></i> 返回 Myself</button>
+    <div class="section-head">
+      <h2 class="display">每日运动</h2>
+      <p class="section-head__sub">录入今天的运动，自动计算消耗了多少卡路里。</p>
+    </div>
+    <div class="two-col">
+      <div class="panel">
+        <h3 class="panel__title"><i class="fa-solid fa-person-running"></i> 添加运动</h3>
+        <form id="exerciseForm" class="form-stack">
+          <label class="field"><span>运动类型</span><select class="pill-input" id="exerciseType"></select></label>
+          <label class="field" id="customExerciseField" hidden><span>自定义运动名称</span><input class="pill-input" type="text" id="exerciseCustom" placeholder="例如：飞盘 / 攀岩 / 尊巴" /></label>
+          <label class="field"><span>时长（分钟）</span><input class="pill-input" type="number" id="exerciseMinutes" min="1" value="30" required /></label>
+          <p class="hint" id="exerciseHint"></p>
+          <label class="field"><span>消耗（kcal，自动估算，可微调）</span><input class="pill-input" type="number" id="exerciseKcal" min="0" step="1" value="0" required /></label>
+          <button class="btn btn--blue" type="submit" style="width:100%"><i class="fa-solid fa-plus"></i> 添加到今日运动</button>
+        </form>
+      </div>
+      <div class="panel">
+        <h3 class="panel__title"><i class="fa-solid fa-fire-flame-curved"></i> 今日消耗</h3>
+        <div class="big-number"><span id="exerciseTotal">0</span><small>kcal</small></div>
+        <ul class="record-list" id="exerciseList"></ul>
+        <p class="empty" id="exerciseEmpty">今天还没记录运动 🏃</p>
+        <div class="panel__foot">
+          <span id="exerciseCount">共 0 条</span>
+          <button class="btn btn--ghost" id="exerciseClearAll"><i class="fa-solid fa-eraser"></i> 清空今日</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== LEDGER ===================== -->
+  <section class="view" id="view-ledger">
+    <button class="back-btn" data-view="myself"><i class="fa-solid fa-arrow-left"></i> 返回 Myself</button>
+    <div class="section-head">
+      <h2 class="display">我的记账</h2>
+      <p class="section-head__sub">记录每日收支，看看这个月花在了哪里。</p>
+    </div>
+    <div class="two-col">
+      <div class="panel">
+        <h3 class="panel__title"><i class="fa-solid fa-pen-to-square"></i> 记一笔</h3>
+        <form id="ledgerForm" class="form-stack">
+          <div class="seg-toggle">
+            <button type="button" class="seg is-active" data-ltype="expense">支出</button>
+            <button type="button" class="seg" data-ltype="income">收入</button>
+          </div>
+          <label class="field"><span>金额（元）</span><input class="pill-input" type="number" id="ledgerAmount" min="0" step="0.01" placeholder="0.00" required /></label>
+          <label class="field"><span>分类</span><select class="pill-input" id="ledgerCategory"></select></label>
+          <label class="field"><span>备注</span><input class="pill-input" type="text" id="ledgerNote" placeholder="例如：和朋友的下午茶" /></label>
+          <label class="field"><span>日期</span><input class="pill-input" type="date" id="ledgerDate" required /></label>
+          <button class="btn btn--blue" type="submit" style="width:100%"><i class="fa-solid fa-plus"></i> 保存</button>
+        </form>
+      </div>
+      <div class="panel">
+        <h3 class="panel__title"><i class="fa-solid fa-chart-pie"></i> 本月概览</h3>
+        <div class="mini-stats">
+          <div><span id="ledgerExpense">0</span><small>本月支出 ¥</small></div>
+          <div><span id="ledgerIncome">0</span><small>本月收入 ¥</small></div>
+          <div><span id="ledgerBalance">0</span><small>结余 ¥</small></div>
+        </div>
+        <ul class="record-list" id="ledgerList"></ul>
+        <p class="empty" id="ledgerEmpty">本月还没有记录 💰</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SLEEP ===================== -->
+  <section class="view" id="view-sleep">
+    <button class="back-btn" data-view="myself"><i class="fa-solid fa-arrow-left"></i> 返回 Myself</button>
+    <div class="section-head">
+      <h2 class="display">我的睡眠</h2>
+      <p class="section-head__sub">手动记录每天的入睡与起床时间，帮你看见作息变化。</p>
+    </div>
+
+    <div class="two-col">
+      <div class="panel">
+        <h3 class="panel__title"><i class="fa-solid fa-moon"></i> 记录今晚</h3>
+        <form id="sleepForm" class="form-stack">
+          <label class="field"><span>日期</span><input class="pill-input" type="date" id="sleepDate" required /></label>
+          <div class="grid-2">
+            <label class="field"><span>入睡时间</span><input class="pill-input" type="time" id="sleepBed" value="23:30" required /></label>
+            <label class="field"><span>起床时间</span><input class="pill-input" type="time" id="sleepWake" value="07:30" required /></label>
+          </div>
+          <label class="field"><span>睡眠质量</span>
+            <select class="pill-input" id="sleepQuality">
+              <option value="5">★★★★★ 很好</option>
+              <option value="4">★★★★ 不错</option>
+              <option value="3" selected>★★★ 一般</option>
+              <option value="2">★★ 较差</option>
+              <option value="1">★ 很差</option>
+            </select>
+          </label>
+          <div class="kcal-preview"><span class="kcal-preview__num" id="sleepHours">8</span><span class="kcal-preview__unit">小时</span></div>
+          <button class="btn btn--blue" type="submit" style="width:100%"><i class="fa-solid fa-plus"></i> 保存</button>
+        </form>
+      </div>
+      <div class="panel">
+        <h3 class="panel__title"><i class="fa-solid fa-bed"></i> 最近记录</h3>
+        <div class="mini-stats">
+          <div><span id="sleepAvg">0</span><small>平均时长 h</small></div>
+          <div><span id="sleepCount">0</span><small>记录天数</small></div>
+        </div>
+        <ul class="record-list" id="sleepList"></ul>
+        <p class="empty" id="sleepEmpty">还没有睡眠记录 🌙</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== GOALS ===================== -->
+  <section class="view" id="view-goals">
+    <button class="back-btn" data-view="myself"><i class="fa-solid fa-arrow-left"></i> 返回 Myself</button>
+    <div class="section-head">
+      <h2 class="display">我的目标</h2>
+      <p class="section-head__sub">设定想完成的目标，记录进度，一步步靠近。</p>
+    </div>
+    <div class="panel">
+      <form id="goalForm" class="form-stack">
+        <div class="grid-2">
+          <label class="field"><span>目标</span><input class="pill-input" type="text" id="goalTitle" placeholder="例如：每天运动 30 分钟" required /></label>
+          <label class="field"><span>截止日期</span><input class="pill-input" type="date" id="goalDue" /></label>
+        </div>
+        <label class="field"><span>说明（可选）</span><input class="pill-input" type="text" id="goalDesc" placeholder="为什么要做这件事？" /></label>
+        <label class="field"><span>当前进度（%）</span><input class="pill-input" type="number" id="goalProgress" min="0" max="100" value="0" /></label>
+        <button class="btn btn--blue" type="submit" style="width:100%"><i class="fa-solid fa-bullseye"></i> 添加目标</button>
+      </form>
+    </div>
+    <div class="goal-grid" id="goalGrid"></div>
+    <p class="empty" id="goalEmpty">还没有目标，定一个小目标吧 🎯</p>
+  </section>
+
+  <!-- ===================== COLLECTION ===================== -->
+  <section class="view" id="view-collection">
+    <button class="back-btn" data-view="myself"><i class="fa-solid fa-arrow-left"></i> 返回 Myself</button>
+    <div class="section-head">
+      <h2 class="display">我的收藏 · 灵感</h2>
+      <p class="section-head__sub">随手收藏喜欢的句子、链接和灵感碎片。</p>
+    </div>
+    <div class="panel">
+      <form id="collectionForm" class="form-stack">
+        <textarea class="pill-input pill-input--area" id="collectionText" placeholder="记下一句话、一个灵感……"></textarea>
+        <div class="grid-2">
+          <label class="field"><span>链接（可选）</span><input class="pill-input" type="url" id="collectionLink" placeholder="https://..." /></label>
+          <label class="field"><span>标签（可选）</span><input class="pill-input" type="text" id="collectionTag" placeholder="例如：文案 / 穿搭" /></label>
+        </div>
+        <button class="btn btn--blue" type="submit" style="width:100%"><i class="fa-solid fa-bookmark"></i> 收藏</button>
+      </form>
+    </div>
+    <div class="collection-grid" id="collectionGrid"></div>
+    <p class="empty" id="collectionEmpty">还没有收藏 ✨</p>
+  </section>
+
+  <!-- ===================== WATCH ===================== -->
+  <section class="view" id="view-watch">
+    <button class="back-btn" data-view="myself"><i class="fa-solid fa-arrow-left"></i> 返回 Myself</button>
+    <div class="section-head">
+      <h2 class="display">我的观影追剧</h2>
+      <p class="section-head__sub">记下看过的电影剧集，打个分，写句短评。</p>
+    </div>
+    <div class="panel">
+      <form id="watchForm" class="form-stack">
+        <div class="grid-2">
+          <label class="field"><span>名称</span><input class="pill-input" type="text" id="watchTitle" placeholder="例如：海上钢琴师" required /></label>
+          <label class="field"><span>类型</span><select class="pill-input" id="watchType"></select></label>
+        </div>
+        <div class="grid-2">
+          <label class="field"><span>状态</span>
+            <select class="pill-input" id="watchStatus">
+              <option value="想看">想看</option>
+              <option value="在看">在看</option>
+              <option value="看过" selected>看过</option>
+            </select>
+          </label>
+          <label class="field"><span>评分</span>
+            <select class="pill-input" id="watchRating">
+              <option value="5">★★★★★</option>
+              <option value="4">★★★★</option>
+              <option value="3">★★★</option>
+              <option value="2">★★</option>
+              <option value="1">★</option>
+            </select>
+          </label>
+        </div>
+        <label class="field"><span>短评（可选）</span><input class="pill-input" type="text" id="watchReview" placeholder="一句话感想" /></label>
+        <button class="btn btn--blue" type="submit" style="width:100%"><i class="fa-solid fa-clapperboard"></i> 加入片单</button>
+      </form>
+    </div>
+    <div class="watch-grid" id="watchGrid"></div>
+    <p class="empty" id="watchEmpty">片单还是空的 🎬</p>
+  </section>
+
+  <!-- ===================== FRIENDS ===================== -->
+  <section class="view" id="view-friends">
+    <button class="back-btn" data-view="home"><i class="fa-solid fa-arrow-left"></i> 返回首页</button>
+    <div class="section-head">
+      <h2 class="display">With Friends</h2>
+      <p class="section-head__sub">分享文字、图片和视频，一起记录想买的东西和想去的地方。</p>
+    </div>
+
+    <div class="friend-bar">
+      <div class="friend-bar__info">
+        <p class="friend-bar__label"><i class="fa-solid fa-user-group"></i> 我的好友圈</p>
+        <p class="friend-bar__code">邀请码：<strong id="myInviteCode">——</strong>
+          <button class="mini-btn" id="copyCode" title="复制邀请码"><i class="fa-regular fa-copy"></i></button>
+        </p>
+        <p class="friend-bar__hint" id="codeHint">朋友输入这个邀请码，就能看到你分享的内容（看不到他们的）。</p>
+      </div>
+      <div class="friend-bar__actions">
+        <button class="btn btn--outline" id="inviteBtn"><i class="fa-solid fa-link"></i> 分享链接</button>
+        <button class="btn btn--outline" id="joinBtn"><i class="fa-solid fa-right-to-bracket"></i> 加好友 / 输入邀请码</button>
+      </div>
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab is-active" data-ftab="share"><i class="fa-solid fa-share-nodes"></i> 分享</button>
+      <button class="tab" data-ftab="cart"><i class="fa-solid fa-cart-shopping"></i> 购物车</button>
+      <button class="tab" data-ftab="data"><i class="fa-solid fa-location-dot"></i> Data</button>
+    </div>
+
+    <div class="ftab is-active" id="ftab-share">
+      <div class="panel">
+        <h3 class="panel__title"><i class="fa-solid fa-pen-nib"></i> 发布一条分享</h3>
+        <form id="shareForm" class="form-stack">
+          <textarea class="pill-input pill-input--area" id="shareText" placeholder="此刻想说点什么？"></textarea>
+          <div class="field">
+            <span>附加图片 / 视频（可选）</span>
+            <div class="upload-row">
+              <label class="upload-btn"><i class="fa-regular fa-image"></i> 图片 <input type="file" id="shareImage" accept="image/*" hidden /></label>
+              <label class="upload-btn"><i class="fa-solid fa-video"></i> 视频 <input type="file" id="shareVideo" accept="video/*" hidden /></label>
+              <span class="upload-name" id="shareFileName">未选择文件</span>
+            </div>
+          </div>
+          <button class="btn btn--blue" type="submit" style="width:100%"><i class="fa-solid fa-paper-plane"></i> 发布分享</button>
+        </form>
+      </div>
+      <div class="feed" id="shareFeed"></div>
+      <p class="empty" id="shareEmpty">还没有分享内容，发第一条吧 ✨</p>
+    </div>
+
+    <div class="ftab" id="ftab-cart">
+      <div class="panel">
+        <h3 class="panel__title"><i class="fa-solid fa-wand-magic-sparkles"></i> 粘贴商品分享内容，自动抓取商品图</h3>
+        <form id="cartForm" class="form-stack">
+          <label class="field"><span>商品分享文字 / 商品链接（淘宝、天猫、京东、小红书等）</span>
+            <textarea class="pill-input pill-input--area" id="cartRaw" placeholder="把淘宝的分享内容整段粘贴进来，例如：&#10;【淘宝】假一赔四 https://e.tb.cn/… 「NARS腮红膨胀氛围色」点击链接直接打开"></textarea>
+          </label>
+          <button type="button" class="btn btn--outline" id="cartParse" style="width:100%"><i class="fa-solid fa-magnifying-glass"></i> 自动识别链接 / 名称 / 价格 / 商品图</button>
+          <div class="preview-card" id="cartPreview" hidden>
+            <div class="preview-card__img" id="cartPreviewImg"><i class="fa-solid fa-image"></i></div>
+            <div class="preview-card__info">
+              <div class="preview-card__name" id="cartPreviewName">—</div>
+              <div class="preview-card__price" id="cartPreviewPrice">价格识别中…</div>
+              <div class="preview-card__link" id="cartPreviewLink">—</div>
+            </div>
+            <div class="cand-strip" id="cartCandStrip" hidden></div>
+          </div>
+          <label class="field" id="cartImgFallback" hidden><span>未识别到首图？可粘贴商品图片链接（可选）</span><input class="pill-input" type="url" id="cartImgUrl" placeholder="https://..." /></label>
+          <label class="field"><span>备注（可选，你和好友都能追加备注）</span><input class="pill-input" type="text" id="cartNote" placeholder="例如：想买 ORGASM 色号" /></label>
+          <p class="hint" id="cartHint">点「自动识别」会抓取商品主图并给出候选图，可点缩略图切换；直接点「加入购物车」也会自动识别。</p>
+          <button class="btn btn--blue" type="submit" style="width:100%"><i class="fa-solid fa-cart-plus"></i> 加入购物车</button>
+        </form>
+      </div>
+      <div class="product-grid" id="cartGrid"></div>
+      <p class="empty" id="cartEmpty">购物车还是空的 🛒</p>
+    </div>
+
+    <div class="ftab" id="ftab-data">
+      <div class="panel">
+        <h3 class="panel__title"><i class="fa-solid fa-map-location-dot"></i> 粘贴地点链接，自动识别</h3>
+        <form id="placeForm" class="form-stack">
+          <label class="field"><span>地点链接（大众点评 / 百度地图 / 淘宝 / 任意链接）</span>
+            <textarea class="pill-input pill-input--area" id="placeRaw" placeholder="粘贴店铺或地点的分享链接，例如大众点评 / 百度地图链接"></textarea>
+          </label>
+          <button type="button" class="btn btn--outline" id="placeParse" style="width:100%"><i class="fa-solid fa-magnifying-glass"></i> 自动识别链接 / 名称 / 图片</button>
+          <div class="preview-card" id="placePreview" hidden>
+            <div class="preview-card__img" id="placePreviewImg"><i class="fa-solid fa-image"></i></div>
+            <div class="preview-card__info">
+              <div class="preview-card__name" id="placePreviewName">—</div>
+              <div class="preview-card__price" id="placePreviewPlatform">—</div>
+              <div class="preview-card__link" id="placePreviewLink">—</div>
+            </div>
+            <div class="cand-strip" id="placeCandStrip" hidden></div>
+          </div>
+          <label class="field" id="placeImgFallback" hidden><span>未识别到图片？可粘贴图片链接（可选）</span><input class="pill-input" type="url" id="placeImgUrl" placeholder="https://..." /></label>
+          <label class="field"><span>备注（可选，你和好友都能追加备注）</span><input class="pill-input" type="text" id="placeNote" placeholder="例如：周末和朋友一起去" /></label>
+          <p class="hint" id="placeHint">支持大众点评、百度地图等链接，自动识别店铺名与实拍图；店铺页有反爬时会用图片搜索兜底，候选图可点选。</p>
+          <button class="btn btn--blue" type="submit" style="width:100%"><i class="fa-solid fa-plus"></i> 加入清单</button>
+        </form>
+      </div>
+      <div class="place-grid" id="placeGrid"></div>
+      <p class="empty" id="placeEmpty">还没有想去的地方 📍</p>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="footer__inner">
+    <p class="footer__logo">About Me</p>
+    <p class="footer__note">每天一点小记录</p>
+    <div class="footer__social">
+      <i class="fa-solid fa-mug-hot"></i>
+      <i class="fa-solid fa-heart"></i>
+      <i class="fa-solid fa-leaf"></i>
+    </div>
+  </div>
+</footer>
+
+<!-- ===================== MODAL: login ===================== -->
+<div class="modal" id="loginModal">
+  <div class="modal__card">
+    <h3 class="modal__title">手机号登录</h3>
+    <p class="modal__sub">输入手机号获取验证码，自动注册并登录。</p>
+    <label class="field">
+      <span>手机号</span>
+      <input class="pill-input" type="tel" id="phoneInput" placeholder="请输入 11 位手机号" maxlength="11" />
+    </label>
+    <div class="field" style="margin-top:16px">
+      <span>验证码</span>
+      <div class="code-row">
+        <input class="pill-input" type="text" id="codeInput" placeholder="6 位验证码" maxlength="6" />
+        <button class="btn btn--outline" id="sendCodeBtn" type="button">获取验证码</button>
+      </div>
+    </div>
+    <p class="hint" id="loginHint"></p>
+    <div class="modal__actions">
+      <button class="btn btn--ghost" data-close>取消</button>
+      <button class="btn btn--blue" id="verifyBtn">登录</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: profile ===================== -->
+<div class="modal" id="profileModal">
+  <div class="modal__card">
+    <h3 class="modal__title">我的资料</h3>
+    <p class="modal__sub">手机号：<strong id="profilePhone">—</strong> · 邀请码：<strong id="profileCode">—</strong></p>
+    <label class="field">
+      <span>昵称（可修改）</span>
+      <input class="pill-input" type="text" id="profileName" placeholder="设置一个昵称" />
+    </label>
+    <div class="modal__actions">
+      <button class="btn btn--ghost" id="logoutBtn">退出登录</button>
+      <button class="btn btn--blue" id="saveProfile">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: join friend ===================== -->
+<div class="modal" id="joinModal">
+  <div class="modal__card">
+    <h3 class="modal__title">加好友</h3>
+    <p class="modal__sub">输入朋友的 6 位邀请码，即可看到对方分享的购物车、地点和动态。</p>
+    <label class="field">
+      <span>好友邀请码</span>
+      <input class="pill-input" type="text" id="joinInput" placeholder="例如：ABC123" maxlength="6" />
+    </label>
+    <p class="hint" id="joinHint"></p>
+    <div class="modal__actions">
+      <button class="btn btn--ghost" data-close>取消</button>
+      <button class="btn btn--blue" id="confirmJoin">添加</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: share link ===================== -->
+<div class="modal" id="inviteModal">
+  <div class="modal__card">
+    <h3 class="modal__title">分享链接</h3>
+    <p class="modal__sub">把链接发给朋友，或直接告诉对方你的邀请码。</p>
+    <label class="field"><span>我的邀请码</span><input class="pill-input" id="inviteCodeShow" readonly /></label>
+    <label class="field" style="margin-top:14px"><span>分享链接</span><textarea class="pill-input pill-input--area" id="inviteLink" readonly></textarea></label>
+    <div class="modal__actions">
+      <button class="btn btn--ghost" data-close>关闭</button>
+      <button class="btn btn--blue" id="copyInvite"><i class="fa-regular fa-copy"></i> 复制链接</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: todo history (calendar) ===================== -->
+<div class="modal" id="todoHistoryModal">
+  <div class="modal__card modal__card--wide">
+    <h3 class="modal__title">历史待办</h3>
+    <p class="modal__sub">每天的待办都会自动保存。点击有标记的日期查看当天的任务。</p>
+    <div class="cal">
+      <div class="cal__head">
+        <button class="icon-btn cal__nav" id="calPrev" title="上个月"><i class="fa-solid fa-chevron-left"></i></button>
+        <span class="cal__month" id="calMonth">—</span>
+        <button class="icon-btn cal__nav" id="calNext" title="下个月"><i class="fa-solid fa-chevron-right"></i></button>
+      </div>
+      <div class="cal__week">
+        <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+      </div>
+      <div class="cal__grid" id="calGrid"></div>
+    </div>
+    <div class="cal__detail" id="calDetail">
+      <p class="cal__hint">点击日历里的某一天，查看当天的待办记录。</p>
+    </div>
+    <div class="modal__actions">
+      <button class="btn btn--ghost" data-close>关闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

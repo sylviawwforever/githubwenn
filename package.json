@@ -1,0 +1,16 @@
+{
+  "name": "about-me",
+  "version": "1.0.0",
+  "description": "About Me · 个人生活记录网页（含 Node/Express 后端）",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "puppeteer-core": "^23.11.1"
+  }
+}
