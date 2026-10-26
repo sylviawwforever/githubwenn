@@ -1,4 +1,6 @@
 [build]
+  # 纯静态页 + 无依赖云函数（只用到 Node 内置模块），无需安装依赖，构建秒完成
+  command = "echo 'static site + dependency-free functions, skip build'"
   publish = "public"
   functions = "netlify/functions"
 

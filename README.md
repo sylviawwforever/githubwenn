@@ -49,6 +49,23 @@ npm start
 
 ## 部署到 Netlify
 
+### 方式 A：连接 GitHub 仓库（推荐，之后 push 自动上线）
+
+仓库：<https://github.com/sylviawwforever/githubwenn>
+
+1. Netlify → **Add new site** → **Import an existing project** → GitHub
+2. 选择 `githubwenn`，构建设置会自动读取 `netlify.toml`（发布目录 `public`、函数目录 `netlify/functions`），一路 Next 即可
+3. 部署完成后在 **Domain management** 绑定域名 `work.willowww.wang`
+
+以后只要 `git push` 到 `main`，线上自动更新。
+
+### 方式 B：拖放上传
+
+把 `public/` 与 `netlify/` 一起打包拖到 Netlify 站点的 Deploys 页面；
+本项目已提供 `部署到线上.command`，双击后按提示操作即可。
+
+### 方式 C：命令行
+
 ```bash
 NETLIFY_AUTH_TOKEN=你的Token npx netlify-cli deploy --prod --dir=public --functions=netlify/functions --site 3fc00d6b-329b-4f0e-bad0-d31bcad6a439
 ```
