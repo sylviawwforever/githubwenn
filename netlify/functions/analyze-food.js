@@ -17,7 +17,7 @@ exports.handler = async (event) => {
       ok: true,
       configured: false,
       items: [],
-      message: '线上版暂未配置视觉大模型，请使用「快速选择常见食物」，或在本地 npm start 后使用拍照识别。'
+      message: '这个入口未配置视觉模型。请改用 Express 后端，并设置 VISION_PROVIDER=deepseek 与 VISION_API_KEY。未配置时请用常见食物手动录入。'
     })
   };
 };

@@ -13,14 +13,15 @@ const path = require('path');
 const crypto = require('crypto');
 const { browserCandidates, searchImages, searchWebImages } = require('./browser-preview');
 const { collectCandidates, rankCandidates, isUsableImage, decodeEntities } = require('./image-picker');
-const { previewLink } = require('./netlify/functions/lib/link-preview-core');
+const { previewLink, parsePrice: coreParsePrice, parseAvgPrice, hintFrom: coreHintFrom, detectKind: coreDetectKind } = require('./netlify/functions/lib/link-preview-core');
+const { normalizeFoodItems } = require('./public/data');
 const { sendSms } = require('./sms');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, 'data');
-const DB_FILE = path.join(DATA_DIR, 'db.json');
+const DB_FILE = process.env.ABOUTME_DB || path.join(DATA_DIR, 'db.json');
 
 /* 允许跨域：双击打开的页面（file://，Origin 为 null）也能调用本机后端 */
 app.use((req, res, next) => {
@@ -528,34 +529,51 @@ async function fetchPreview(url, opts = {}) {
 }
 
 app.post('/api/link-preview', api(async (req, res) => {
-  const raw = String(req.body.url || '').trim();
-  const m = raw.match(/https?:\/\/[^\s"'<>）），,、]+/);
-  const kind = req.body.kind === 'place' ? 'place' : req.body.kind === 'product' ? 'product' : undefined;
-  const hint = hintFrom(req.body.text || req.body.hint || raw);
-  const url = m ? m[0] : '';
+  const body = req.body || {};
+  if (body.warm) return res.json({ ok: true, warmed: true });
 
+  const raw = String(body.text || body.hint || body.url || '').trim();
+  const urlMatch = String(body.url || raw).match(/https?:\/\/[^\s"'<>）），,、]+/);
+  const url = urlMatch ? urlMatch[0] : '';
+  const kind = body.kind === 'place' ? 'place' : body.kind === 'product' ? 'product' : coreDetectKind(url);
+  const hint = coreHintFrom(raw);
+  /* 软截止必须短于 Vercel 函数上限，保证总能返回已经抓到的字段 */
+  const budgetMs = Math.max(1200, Math.min(12000, Number(process.env.LINK_PREVIEW_BUDGET_MS) || 8000));
+  const deadline = Date.now() + budgetMs;
+  const textAvg = parseAvgPrice(raw);
+  const quick = {
+    url: url || null,
+    image: null,
+    title: hint || null,
+    price: (kind === 'place' && textAvg) ? { min: textAvg.min, max: textAvg.max, kind: 'avg' } : coreParsePrice(raw),
+    avgPrice: textAvg ? textAvg.min : null,
+    avgPriceMax: textAvg ? textAvg.max : null,
+    shot: false,
+    source: null,
+    candidates: [],
+    softTimeout: true,
+    note: hint || textAvg ? '已到软截止，返回目前识别到的标题、价格或人均。' : '已到软截止，没有抓到更多字段。'
+  };
+  if (!url && !hint) return res.status(400).json({ ok: false, error: '没有识别到链接或名称' });
+
+  let info = null;
   try {
-    const fast = await previewLink({ url, text: req.body.text || req.body.hint || raw, kind });
-    if (fast && fast.image && fast.source !== 'shot') {
-      return res.json({ ok: true, ...fast });
-    }
-
-    if (url) {
-      const info = await fetchPreview(url, { hint, kind });
-      if (info && info.image && !info.shot) return res.json({ ok: true, ...info });
-      if (fast) {
-        const merged = { ...fast, title: fast.title || (info && info.title) || null, price: fast.price || (info && info.price) || null };
-        return res.json({ ok: true, ...merged });
-      }
-      return res.json({ ok: true, ...info });
-    }
-
-    if (fast) return res.json({ ok: true, ...fast });
-    if (!hint) return res.status(400).json({ ok: false, error: '没有识别到链接或名称' });
-    res.json({ ok: true, url: null, image: null, title: hint, price: null, candidates: [], note: '按名称没有搜到图片；可以粘贴完整链接再试。' });
+    info = await Promise.race([
+      previewLink({ url, text: raw, kind, deadline }),
+      new Promise((resolve) => setTimeout(() => resolve(null), budgetMs + 500))
+    ]);
   } catch (e) {
-    res.json({ ok: true, url: url || null, image: null, title: hint || null, price: null, candidates: [], note: '未能抓取到页面信息：' + e.message });
+    info = null;
   }
+  if (!info) return res.json({ ok: true, ...quick });
+  if (textAvg && info.avgPrice == null) {
+    info.avgPrice = textAvg.min;
+    info.avgPriceMax = textAvg.max;
+    if (kind === 'place' && (!info.price || info.price.kind === 'avg')) {
+      info.price = { min: textAvg.min, max: textAvg.max, kind: 'avg' };
+    }
+  }
+  return res.json({ ok: true, ...info });
 }));
 
 /* 好友：仅互为好友可通过邀请码查看对方公开内容 */
@@ -624,10 +642,34 @@ app.get('/api/friends/feed', auth, api((req, res) => {
    食物图片识别（大模型视觉 API）
    ========================================================= */
 const VISION_PROMPT =
-  '你是专业营养师。请识别图片里的食物或饮品，估算每种食物的中文名称、大致重量（克）和热量（kcal）。' +
-  '如果是市售饮品（如瑞幸、喜茶、霸王茶姬等），请尽量写出品牌和单品名。' +
+  '你是专业营养师。请识别图片里的食物或饮品，估算每种的中文名称、大致重量（克）、热量（kcal）、碳水（g）、蛋白质（g）、膳食纤维（g）。' +
+  '如果是市售饮品（如瑞幸、喜茶、霸王茶姬等），请尽量写出品牌和单品名。数值是估算，可以有一位小数。' +
   '只返回严格的 JSON，不要任何多余文字，格式：' +
-  '{"items":[{"name":"食物名","grams":100,"kcal":120}],"note":"简短说明"}';
+  '{"items":[{"name":"食物名","grams":100,"kcal":120,"carbs":20,"protein":8,"fiber":1.5}],"note":"简短说明"}';
+
+const VISION_MISSING_MSG =
+  '尚未配置 VISION_API_KEY。请在 Vercel（或本地 .env）设置 VISION_PROVIDER=deepseek、VISION_API_KEY（你的 DeepSeek Key），可选 VISION_MODEL=deepseek-flash、VISION_BASE_URL=https://api.deepseek.com。未配置时请用下方常见食物手动录入，热量、碳水、蛋白质和膳食纤维会按食物库估算。';
+
+function visionSettings() {
+  const requested = (process.env.VISION_PROVIDER || 'deepseek').toLowerCase();
+  const defaults = {
+    deepseek: { base: 'https://api.deepseek.com', model: 'deepseek-flash' },
+    zhipu: { base: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4v-flash' },
+    qwen: { base: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-vl-plus' },
+    openai: { base: 'https://api.openai.com/v1', model: 'gpt-4o-mini' }
+  };
+  const provider = defaults[requested] ? requested : 'deepseek';
+  const preset = defaults[provider];
+  const customBase = (process.env.VISION_BASE_URL || '').trim().replace(/\/+$/, '');
+  const base = customBase || preset.base;
+  const url = /\/chat\/completions$/.test(base) ? base : base + '/chat/completions';
+  return {
+    provider,
+    url,
+    model: (process.env.VISION_MODEL || '').trim() || preset.model,
+    key: process.env.VISION_API_KEY || ''
+  };
+}
 
 function extractJson(text) {
   if (!text) return null;
@@ -639,50 +681,33 @@ function extractJson(text) {
 }
 
 async function chatVision(imageUrls, prompt) {
-  const provider = (process.env.VISION_PROVIDER || '').toLowerCase();
-  const key = process.env.VISION_API_KEY;
-  if (!provider || !key) return null;
-
-  const customBase = (process.env.VISION_BASE_URL || '').trim().replace(/\/+$/, '');
-  const configs = {
-    zhipu: {
-      url: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
-      model: process.env.VISION_MODEL || 'glm-4v-flash'
-    },
-    qwen: {
-      url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
-      model: process.env.VISION_MODEL || 'qwen-vl-plus'
-    },
-    openai: {
-      url: 'https://api.openai.com/v1/chat/completions',
-      model: process.env.VISION_MODEL || 'gpt-4o-mini'
-    }
-  };
-  const cfg = configs[provider] || configs.openai;
-  // VISION_BASE_URL 填的是接口根地址（如 http://localhost:11434/v1），自动补全路径
-  if (customBase) cfg.url = /\/chat\/completions$/.test(customBase) ? customBase : customBase + '/chat/completions';
+  const cfg = visionSettings();
+  if (!cfg.key) return null;
 
   const body = {
     model: cfg.model,
     messages: [{
       role: 'user',
       content: [
-        ...imageUrls.slice(0, 6).map(u => ({ type: 'image_url', image_url: { url: u } })),
-        { type: 'text', text: prompt }
+        { type: 'text', text: prompt },
+        ...imageUrls.slice(0, 6).map(u => ({ type: 'image_url', image_url: { url: u } }))
       ]
     }],
     temperature: 0.2,
-    max_tokens: 512
+    max_tokens: 1024
   };
+  /* deepseek-flash 是图像理解模型；关掉思考过程，避免 JSON 被推理文本包住 */
+  if (cfg.provider === 'deepseek') body.thinking = { type: 'disabled' };
 
   const resp = await fetch(cfg.url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + cfg.key },
     body: JSON.stringify(body)
   });
   if (!resp.ok) {
     const txt = await resp.text();
-    throw new Error(`视觉 API 调用失败 (${resp.status}) ${cfg.url}：${txt.slice(0, 200)}`);
+    const brief = txt.replace(/sk-[A-Za-z0-9_-]+/g, '[key]').slice(0, 180);
+    throw new Error(`视觉 API 调用失败 (${resp.status})：${brief}`);
   }
   const json = await resp.json();
   const content = json.choices?.[0]?.message?.content;
@@ -714,7 +739,7 @@ function cacheSet(k, v) {
 const WARMUP_IMAGE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 let warming = null;
 function warmVision() {
-  if (!process.env.VISION_API_KEY) return Promise.resolve();
+  if (!visionSettings().key) return Promise.resolve();
   if (warming) return warming;
   warming = chatVision([WARMUP_IMAGE], '回复 ok').catch(() => {}).finally(() => { warming = null; });
   return warming;
@@ -723,10 +748,17 @@ function warmVision() {
 /* 把底层网络错误翻译成人话 */
 function visionErrHint(e) {
   const msg = String(e && e.message || e);
+  const cfg = visionSettings();
   if (/ECONNREFUSED|fetch failed|连接被拒绝/i.test(msg)) {
-    return '本机视觉模型没连上：请先启动 ollama（终端运行 `ollama serve`），并确认已拉取模型（`ollama pull qwen2.5vl:3b`）。也可以直接用小程序里的「快速选择常见食物」。';
+    if (cfg.provider === 'deepseek') {
+      return '连不上 DeepSeek。请确认 VISION_BASE_URL=https://api.deepseek.com（也兼容 /v1），以及 VISION_API_KEY 是否有效。';
+    }
+    return '视觉模型没连上。请检查 VISION_BASE_URL / VISION_API_KEY，或改用下方常见食物手动录入。';
   }
-  if (/timeout|aborted|ETIMEDOUT/i.test(msg)) return '识别超时了，模型可能还在预热，再点一次会快很多。';
+  if (/timeout|aborted|ETIMEDOUT/i.test(msg)) return '识别超时了，请再试一次。也可以先用常见食物手动录入。';
+  if (cfg.provider === 'deepseek' && /model|image|vision|unsupported|invalid/i.test(msg)) {
+    return 'DeepSeek 没有完成识图。请确认 VISION_MODEL=deepseek-flash、VISION_PROVIDER=deepseek、VISION_BASE_URL=https://api.deepseek.com。' + msg.slice(0, 140);
+  }
   return msg.slice(0, 200);
 }
 
@@ -760,50 +792,59 @@ async function visionPick(candidates, kind, title) {
 
 app.post('/api/analyze-food', api(async (req, res) => {
   /* 预热：小程序选完照片就会悄悄调一次，让本地模型提前加载进内存 */
-  if (req.body.warm) {
+  const body = req.body || {};
+  if (body.warm) {
     warmVision();
     return res.json({ ok: true, warmed: true });
   }
 
-  const image = req.body.image;
+  const image = body.image;
   if (!image || !/^data:image\//.test(image)) return res.status(400).json({ ok: false, error: '请上传图片' });
 
-  const key = cacheKey(image);
-  const hit = cacheGet(key);
-  if (hit) return res.json({ ok: true, configured: true, cached: true, ...hit });
-
-  let result = null;
-  try { result = await callVision(image); }
-  catch (e) { return res.status(502).json({ ok: false, error: visionErrHint(e) }); }
-
-  if (!result) {
+  const cfg = visionSettings();
+  if (!cfg.key) {
     return res.json({
       ok: true,
       configured: false,
-      message: '尚未配置视觉大模型 API Key。请在 .env 中设置 VISION_PROVIDER 与 VISION_API_KEY 后重试，或直接使用快速选择常见食物。',
+      provider: cfg.provider,
+      model: cfg.model,
+      message: VISION_MISSING_MSG,
       items: []
     });
   }
 
+  const key = cacheKey(image);
+  const hit = cacheGet(key);
+  if (hit) return res.json({ ok: true, configured: true, cached: true, provider: cfg.provider, model: cfg.model, ...hit });
+
+  let result = null;
+  try { result = await callVision(image); }
+  catch (e) { return res.status(502).json({ ok: false, configured: true, error: visionErrHint(e) }); }
+
+  if (!result || !Array.isArray(result.items)) {
+    return res.status(502).json({
+      ok: false,
+      configured: true,
+      error: '模型没有返回可识别的食物列表。请换一张更清晰的照片，或用下方常见食物手动录入。'
+    });
+  }
+
   const payload = {
-    items: (result.items || []).map(it => ({
-      name: String(it.name || '未识别'),
-      grams: Number(it.grams) || 0,
-      kcal: Math.max(0, Math.round(Number(it.kcal) || 0))
-    })),
-    note: result.note || ''
+    items: normalizeFoodItems(result.items),
+    note: result.note || '识别结果可修改热量和营养素后再加入。'
   };
   cacheSet(key, payload);
-
-  res.json({ ok: true, configured: true, ...payload });
+  res.json({ ok: true, configured: true, provider: cfg.provider, model: cfg.model, ...payload });
 }));
 
 /* ---------- 健康检查 ---------- */
 app.get('/api/health', (req, res) => {
+  const cfg = visionSettings();
   res.json({
     ok: true,
-    vision: !!process.env.VISION_API_KEY,
-    provider: process.env.VISION_PROVIDER || null,
+    vision: !!cfg.key,
+    provider: cfg.provider,
+    model: cfg.model,
     time: Date.now()
   });
 });
@@ -815,16 +856,20 @@ app.use(express.static(path.join(ROOT, 'public'), { index: 'index.html', extensi
 process.on('uncaughtException', (e) => console.error('[未捕获异常]', e && e.stack || e));
 process.on('unhandledRejection', (e) => console.error('[未处理的Promise]', e && e.stack || e));
 
-app.listen(PORT, () => {
-  console.log('');
-  console.log('  ☕ About Me 已启动');
-  console.log(`  → 打开 http://localhost:${PORT}`);
-  console.log(`  → 视觉识别：${process.env.VISION_API_KEY ? '已配置 (' + (process.env.VISION_PROVIDER || 'openai') + ')' : '未配置（食物图片识别将提示配置 .env）'}`);
-  // 启动 3 秒后预热本地视觉模型：第一次真实识别会快很多
-  if (process.env.VISION_API_KEY) {
-    setTimeout(() => {
-      warmVision().then(() => console.log('  🔥 视觉模型已预热，拍照识别就绪'));
-    }, 3000);
-  }
-  console.log('');
-});
+module.exports = app;
+
+if (require.main === module && !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    const cfg = visionSettings();
+    console.log('');
+    console.log('  ☕ About Me 已启动');
+    console.log(`  → 打开 http://localhost:${PORT}`);
+    console.log(`  → 视觉识别：${cfg.key ? '已配置 (' + cfg.provider + ' / ' + cfg.model + ')' : '未配置（请设置 VISION_API_KEY）'}`);
+    if (cfg.key) {
+      setTimeout(() => {
+        warmVision().then(() => console.log('  🔥 视觉模型已预热，拍照识别就绪'));
+      }, 3000);
+    }
+    console.log('');
+  });
+}

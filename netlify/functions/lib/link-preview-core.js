@@ -37,6 +37,24 @@ const HUMAN = {
   betweenSourceMin: 120, betweenSourceMax: 400
 };
 
+/* 自适应节奏：被拦就放慢，顺利就慢慢回到日常速度。同一进程内生效，避免连发。 */
+let paceScale = 1;
+function paceMs(min, max) {
+  return Math.round(jitter(min, max) * paceScale);
+}
+function noteBlocked() {
+  paceScale = Math.min(3, Math.round((paceScale + 0.5) * 100) / 100);
+}
+function noteClear() {
+  paceScale = Math.max(0.85, Math.round(paceScale * 0.92 * 100) / 100);
+}
+async function gazePause(fast) {
+  const glances = fast ? 1 : 1 + (Math.random() < 0.45 ? 1 : 0);
+  for (let i = 0; i < glances; i++) {
+    await sleep(paceMs(fast ? HUMAN.thinkShortMin : HUMAN.thinkMin, fast ? HUMAN.thinkShortMax : HUMAN.thinkMax));
+  }
+}
+
 /* ---------- 反爬标题黑名单 ---------- */
 const BAD_TITLE = /^(登录|注册|验证中心|身份核实|安全验证|访问验证|滑动验证|403 Forbidden|404|405|500|502|503|Just a moment|商品详情页|京东-欢迎登录|页面不存在|安全提示|大众点评|美团)/i;
 const JUNK_IMAGE = /(logo|favicon|sprite|placeholder|loading|blank|pixel|beacon|track|qrcode|qr_|_qr|erweima|watermark|avatar|head_?img|icon_|_icon|btn|button|arrow|close|share_?pic|share_?code|1x1|spacer|static\/common|dppclogin|dpstatic)/i;
@@ -79,7 +97,7 @@ function cleanTitle(value) {
 function isUselessTitle(t) {
   if (!t) return true;
   const s = t.replace(/[\s\-_|–·]/g, '').toLowerCase();
-  return /^(淘宝网|淘宝|天猫|京东|京东商城|拼多多|欢迎登录|安全验证|商品详情页|页面不存在|baidu|amap|高德地图)$/.test(s) || s.length < 3;
+  return /^(淘宝网|淘宝|天猫|京东|京东商城|拼多多|欢迎登录|安全验证|商品详情页|页面不存在|baidu|amap|高德地图|大众点评|美团|百度地图)$/.test(s) || s.length < 3;
 }
 
 function absoluteUrl(raw, base) {
@@ -127,7 +145,7 @@ function hintFrom(text) {
   if (!name) {
     const brackets = (raw.match(/【([^】]+)】/g) || [])
       .map((s) => s.slice(1, -1))
-      .filter((s) => !/淘宝|天猫|京东|拼多多|小红书|抖音|会员|抢先|假一赔|旗舰店|复制|分享|好物|推荐/.test(s));
+      .filter((s) => !/淘宝|天猫|京东|拼多多|小红书|抖音|大众点评|美团|百度地图|会员|抢先|假一赔|旗舰店|复制|分享|好物|推荐/.test(s));
     name = brackets[0] || '';
   }
   if (!name) {
@@ -147,8 +165,12 @@ function hintFrom(text) {
 /* =========================================================================
  * 价格提取（多路）
  * ========================================================================= */
+function stripAvgClause(text) {
+  return String(text || '').replace(/人均(?:消费|价格)?\s*[:：]?\s*[￥¥]?\s*\d+(?:\.\d{1,2})?\s*(?:元|\/人)?(?:\s*[-~至]\s*\d+(?:\.\d{1,2})?\s*元?)?/g, ' ');
+}
+
 function parsePrice(text) {
-  const s = String(text || '').replace(/\u00a0/g, ' ');
+  const s = stripAvgClause(text).replace(/\u00a0/g, ' ');
   if (!s) return null;
   const range = s.match(/(?:￥|¥|价格|售价|券后|到手价)?\s*(\d+(?:\.\d{1,2})?)\s*(?:元)?\s*[-~至]\s*(\d+(?:\.\d{1,2})?)\s*元/i);
   if (range) {
@@ -170,6 +192,31 @@ function parsePrice(text) {
   if (yuan) {
     const value = Number(yuan[1]);
     if (value > 0 && value < 10000000) return { min: value, max: value };
+  }
+  return null;
+}
+
+/* 人均消费：分享文案、点评页 JSON 都可能出现。返回 { min, max } */
+function parseAvgPrice(text) {
+  const s = String(text || '').replace(/\u00a0/g, ' ');
+  if (!s) return null;
+  const range = s.match(/人均(?:消费|价格)?\s*[:：]?\s*[￥¥]?\s*(\d+(?:\.\d{1,2})?)\s*(?:元)?\s*[-~至]\s*(\d+(?:\.\d{1,2})?)\s*元?/);
+  if (range) {
+    const min = Number(range[1]);
+    const max = Number(range[2]);
+    if (min > 0 && max >= min && max < 100000) return { min, max };
+  }
+  const patterns = [
+    /人均(?:消费|价格)?\s*[:：]?\s*[￥¥]?\s*(\d+(?:\.\d{1,2})?)\s*(?:元|\/人)?/,
+    /"avgPrice"\s*:\s*"?(\d+(?:\.\d{1,2})?)"?/,
+    /"averagePrice"\s*:\s*"?(\d+(?:\.\d{1,2})?)"?/,
+    /"priceText"\s*:\s*"人均[^"\d]{0,12}(\d+(?:\.\d{1,2})?)/
+  ];
+  for (const re of patterns) {
+    const m = s.match(re);
+    if (!m) continue;
+    const value = Number(m[1]);
+    if (value > 0 && value < 100000) return { min: value, max: value };
   }
   return null;
 }
@@ -338,18 +385,22 @@ async function requestText(url, opts = {}) {
   }
 }
 
-/* 拟人节奏抓取：请求前随机停顿，被反爬拦截后换 UA、更长停顿重试
-   fast=true 用于短链跳转 —— 真人点链接不会犹豫，但被拦后一样会停顿 */
-async function scrape(url, { retries = 2, referer = '', jar = null, timeout = 5000, accept, extra, fast = false } = {}) {
-  await sleep(fast
-    ? jitter(HUMAN.thinkShortMin, HUMAN.thinkShortMax)
-    : jitter(HUMAN.thinkMin, HUMAN.thinkMax));
+/* 拟人节奏抓取：请求前随机「看一眼」，被反爬拦截后换 UA、按当前节奏放慢再试。
+   不会对同一地址连开多路。fast=true 用于短链跳转。 */
+async function scrape(url, { retries = 1, referer = '', jar = null, timeout = 5000, accept, extra, fast = false, ua = '' } = {}) {
+  await gazePause(fast);
   let last = null;
-  for (let i = 0; i <= retries; i++) {
-    const res = await requestText(url, { ua: randomUA(), referer, jar, timeout, accept, extra });
-    if (res && res.text && !isHardBlock(res)) return res;
+  const tries = Math.max(0, Math.min(2, retries));
+  for (let i = 0; i <= tries; i++) {
+    const useUa = (i === 0 && ua) ? ua : randomUA();
+    const res = await requestText(url, { ua: useUa, referer, jar, timeout, accept, extra });
+    if (res && res.text && !isHardBlock(res)) {
+      noteClear();
+      return res;
+    }
+    noteBlocked();
     last = res;
-    if (i < retries) await sleep(jitter(HUMAN.retryMin, HUMAN.retryMax));
+    if (i < tries) await sleep(paceMs(HUMAN.retryMin, HUMAN.retryMax));
   }
   return last;
 }
@@ -581,7 +632,7 @@ async function baiduImages(query, kind) {
   const res = await scrape(searchUrl, {
     referer: 'https://image.baidu.com/',
     accept: 'application/json, text/javascript, */*; q=0.01',
-    jar, timeout: 6000, retries: 2
+    jar, timeout: 4500, retries: 1
   });
   if (!res || !res.text) return { images: [], products: [] };
   const parsed = parseBaiduJson(res.text);
@@ -649,7 +700,7 @@ async function bingImages(query, kind) {
   const res = await scrape(url, {
     referer: 'https://www.bing.com/',
     accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    timeout: 6000, retries: 2
+    timeout: 4500, retries: 1
   });
   if (!res || !res.text) return [];
   const html = res.text
@@ -819,6 +870,68 @@ async function searchByHint(hint, kind, url, withProducts) {
   return { images, products };
 }
 
+function parseTaobaoHtml(html, base) {
+  const rawTitle = (html.match(/"(?:raw_title|title|itemTitle)"\s*:\s*"([^"\\]{4,160})"/) || [])[1]
+    || metaContent(html, 'og:title')
+    || (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1];
+  const title = cleanTitle(decodeEntities(rawTitle || ''));
+  const price = priceFromHtml(html) || priceFromJsonLd(html);
+  let images = collectPageImages(html, base).filter((c) => /alicdn|taobao|tmall|tbcdn/i.test(c.url));
+  if (!images.length) images = collectPageImages(html, base).slice(0, 6);
+  return { title: isUselessTitle(title) ? null : title, price, images, avg: null };
+}
+
+function parseDianpingHtml(html, base) {
+  const rawTitle = (html.match(/"(?:shopName|shop_name|name)"\s*:\s*"([^"\\]{2,80})"/) || [])[1]
+    || metaContent(html, 'og:title')
+    || (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1];
+  const title = cleanTitle(decodeEntities(rawTitle || ''));
+  const avg = parseAvgPrice(html);
+  let images = collectPageImages(html, base).filter((c) => /dpfile|meituan\.net|dianping|sankuai/i.test(c.url));
+  if (!images.length) images = collectPageImages(html, base).slice(0, 6);
+  return {
+    title: isUselessTitle(title) ? null : title,
+    avg,
+    images,
+    price: avg ? { min: avg.min, max: avg.max, kind: 'avg' } : (priceFromHtml(html) || null)
+  };
+}
+
+function dianpingTargets(url) {
+  const targets = [];
+  if (url) targets.push(url);
+  const id = (String(url || '').match(/\/shop(?:share|info)?\/([A-Za-z0-9]{3,40})/) || [])[1];
+  if (id) targets.push(`https://m.dianping.com/shop/${id}`);
+  return [...new Set(targets)].slice(0, 2);
+}
+
+/* 同一商品/店铺最多顺序看 2 个页面：先停顿，被拦就换 UA 并放慢，不并行轰击 */
+async function readWithHumanPace(urls, remainFn, parse, referer) {
+  let blocked = false;
+  for (const pageUrl of [...new Set((urls || []).filter(Boolean))].slice(0, 2)) {
+    const remain = remainFn();
+    if (remain < 700) return null;
+    await sleep(paceMs(blocked ? HUMAN.retryMin : HUMAN.thinkMin, blocked ? HUMAN.retryMax : HUMAN.thinkMax));
+    const res = await requestText(pageUrl, {
+      ua: blocked ? pick(UA_POOL.slice(3)) : pick(UA_POOL),
+      referer: referer || '',
+      timeout: Math.min(3200, Math.max(800, remain - 250))
+    });
+    if (!res || !res.text) { noteBlocked(); blocked = true; continue; }
+    const parsed = parse(res.text, res.url || pageUrl);
+    const useful = parsed && (parsed.title || (parsed.images && parsed.images.length) || parsed.price || parsed.avg);
+    if (isHardBlock(res)) {
+      noteBlocked();
+      blocked = true;
+      if (useful) return parsed;
+      continue;
+    }
+    noteClear();
+    if (useful) return parsed;
+  }
+  return null;
+}
+
 async function previewLink(input = {}) {
   const urlMatch = String(input.url || '').match(/https?:\/\/[^\s"'<>）），,、]+/);
   const url = urlMatch ? urlMatch[0] : '';
@@ -827,11 +940,16 @@ async function previewLink(input = {}) {
   const hint = hintFrom(rawText) || hintFrom(input.hint || '');
   const key = cacheKey({ url, text: rawText, kind });
 
-  /* ★ 软截止：调用方给一个绝对时间戳，到了就「收手」返回已有最好结果，
-       绝不空手超时 —— 慢网络下也能拿到标题+价格+图，而不是只剩一张截图 */
+  /* ★ 软截止：到点就停，返回已经拿到的标题 / 价格 / 人均 / 图。
+       budget 不会再用 floor 把请求拖过截止时间。 */
   const deadline = Number(input.deadline) || 0;
   const left = () => (deadline ? deadline - Date.now() : 86400000);
-  const budget = (ms, floor = 0) => Math.max(floor, Math.min(ms, left() - 150));
+  const budget = (ms) => {
+    const remain = left() - 180;
+    if (remain < 350) return 0;
+    return Math.min(ms, remain);
+  };
+  const usableHint = hint && !isUselessTitle(hint) ? hint : '';
 
   const now = Date.now();
   const hit = cache.get(key);
@@ -842,7 +960,7 @@ async function previewLink(input = {}) {
     /* 直接就是图片链接：秒回 */
     if (url && IMG_EXT.test(url)) {
       return {
-        url: url || null, image: url, title: hint || null,
+        url: url || null, image: url, title: usableHint || null,
         price: parsePrice(rawText), shot: false, source: 'direct',
         note: '这个链接本身就是图片。', candidates: []
       };
@@ -855,20 +973,34 @@ async function previewLink(input = {}) {
        B) 百度图源(净名) → 商品主图
        C) 百度图源(带平台词) → 商品卡片（真实售价）+ 落地页
        D) 必应图源      → 备用图源 */
-    const term = cleanSearchTerm(hint);
+    const term = cleanSearchTerm(usableHint);
     const platform = platformWord(url, kind);
     const emptyImgs = { images: [], products: [] };
-    const shortTask = url
-      ? withTimeout(resolveShortLink(url).catch(() => null), budget(3000, 600), null)
+    const shortBudget = budget(2800);
+    const plainBudget = budget(3200);
+    const shopBudget = budget(3400);
+    const bingBudget = budget(3000);
+    const shortTask = (url && shortBudget)
+      ? withTimeout(resolveShortLink(url).catch(() => null), shortBudget, null)
       : Promise.resolve(null);
-    const baiduPlainTask = term
-      ? withTimeout(baiduImages(term, kind), budget(3600, 800), emptyImgs)
+    const baiduPlainTask = (term && plainBudget)
+      ? withTimeout(baiduImages(term, kind), plainBudget, emptyImgs)
       : Promise.resolve(emptyImgs);
-    const baiduShopTask = term
-      ? withTimeout(baiduImages(`${term} ${platform}`, kind), budget(4000, 900), emptyImgs)
+    const baiduShopTask = (term && shopBudget)
+      ? (async () => {
+          await sleep(paceMs(HUMAN.betweenSourceMin, HUMAN.betweenSourceMax));
+          const leftMs = budget(3400);
+          if (!leftMs) return emptyImgs;
+          return withTimeout(baiduImages(`${term} ${platform}`, kind), leftMs, emptyImgs);
+        })()
       : Promise.resolve(emptyImgs);
-    const bingTask = term
-      ? withTimeout(bingImages(term, kind), budget(3600, 800), [])
+    const bingTask = (term && bingBudget)
+      ? (async () => {
+          await sleep(paceMs(HUMAN.betweenSourceMin, HUMAN.betweenSourceMax));
+          const leftMs = budget(3000);
+          if (!leftMs) return [];
+          return withTimeout(bingImages(term, kind), leftMs, []);
+        })()
       : Promise.resolve([]);
 
     const [short, baiduPlain, baiduShop, bing] = await Promise.all([
@@ -876,39 +1008,57 @@ async function previewLink(input = {}) {
     ]);
 
     const finalUrl = (short && short.target) || url;
+    const isPlace = kind === 'place' || /dianping|dpurl|meituan|sankuai/.test(`${url} ${finalUrl}`);
+    const rawItemId = String((short && short.itemId) || itemIdFromUrl(finalUrl) || '');
+    const itemId = /^\d{6,20}$/.test(rawItemId) ? rawItemId : '';
+    const looksTaobao = /taobao\.com|tmall\.com|(^|\.)tb\.cn|tb\.am|e\.tb\.cn/.test(`${url} ${finalUrl}`);
 
-    /* 页面抓取：短链已解析出来才需要（省时间） */
-    const pageInfo = (finalUrl && left() > 700)
-      ? await withTimeout(fetchPageInfo(finalUrl, kind).catch(() => null), budget(2600, 500), null)
-      : null;
+    let direct = null;
+    let pageInfo = null;
+    if (looksTaobao && itemId && left() > 900) {
+      const pages = [/tmall/.test(`${url} ${finalUrl}`)
+        ? `https://detail.tmall.com/item.htm?id=${itemId}`
+        : `https://item.taobao.com/item.htm?id=${itemId}`];
+      direct = await readWithHumanPace(pages, left, parseTaobaoHtml, 'https://m.taobao.com/');
+    } else if (isPlace && left() > 900) {
+      direct = await readWithHumanPace(dianpingTargets(finalUrl || url), left, parseDianpingHtml, 'https://m.dianping.com/');
+    } else if (finalUrl && left() > 700) {
+      const pageBudget = budget(2400);
+      pageInfo = pageBudget
+        ? await withTimeout(fetchPageInfo(finalUrl, kind).catch(() => null), pageBudget, null)
+        : null;
+    }
 
-    const extraTitle = pageInfo && pageInfo.title ? pageInfo.title : null;
+    const extraTitle = (direct && direct.title) || (pageInfo && pageInfo.title) || null;
 
     /* 只有链接、没有名字时，用页面标题再搜一轮 */
     let titleCands = { images: [], products: [] };
-    if (!hint && extraTitle && !isUselessTitle(extraTitle) && left() > 1400) {
-      titleCands = await searchByHint(extraTitle, kind, finalUrl, true);
+    const searchBudget = budget(2200);
+    if (!usableHint && extraTitle && !isUselessTitle(extraTitle) && searchBudget) {
+      titleCands = await withTimeout(searchByHint(extraTitle, kind, finalUrl, true), searchBudget, { images: [], products: [] });
     }
 
-    const title = hint || extraTitle || null;
+    const title = usableHint || (extraTitle && !isUselessTitle(extraTitle) ? extraTitle : null);
 
     /* ---------- 价格：合并多路，优先级从高到低 ---------- */
     /* 1) 商品卡片（真实售价，最优先） */
     const products = [...(baiduShop.products || []), ...(baiduPlain.products || []), ...(titleCands.products || [])];
-    products.forEach((p) => { p.score = productScore(p, hint || title || '', kind); });
+    products.forEach((p) => { p.score = productScore(p, usableHint || title || '', kind); });
     products.sort((a, b) => b.score - a.score);
     const bestProduct = products[0] || null;
-    const productPrice = bestProduct && bestProduct.price > 0
+    const productMatch = bestProduct ? titleMatch(bestProduct.title || bestProduct.label, usableHint || title || '') : 0;
+    const productPrice = bestProduct && bestProduct.price > 0 && (productMatch >= 0.3 || !usableHint)
       ? { min: bestProduct.price, max: bestProduct.price }
       : null;
 
     /* 2) 精读商品落地页：官方主图直链 + 官方标题
        并行精读多个候选 SKU，用「标题与商品名匹配度」挑最准的那一个 */
     const deepLinks = pickDeepLinks(products, 3);
-    const deepResults = (deepLinks.length && left() > 1300)
+    const deepBudget = budget(2800);
+    const deepResults = (deepLinks.length && deepBudget && !isPlace && !looksTaobao)
       ? await withTimeout(Promise.all(
           deepLinks.map((d) => readJdMobile(d.sku, false).catch(() => null))
-        ), budget(3800, 900), [])
+        ), deepBudget, [])
       : [];
     /* 按标题匹配度排序 */
     const deepScored = deepResults.filter(Boolean).map((info) => ({
@@ -917,19 +1067,26 @@ async function previewLink(input = {}) {
     deepScored.sort((a, b) => b.hits - a.hits);
     const deepInfo = deepScored.length ? deepScored[0].info : null;
 
-    /* 价格优先级：文案 > 短链 > 页面 > 商品卡片 > 精读页
-       精读页的价格需要单独查（p.3.cn），只查匹配度最高的那一个 SKU */
-    let price = textPrice
-      || (short && short.price)
-      || (pageInfo && pageInfo.price)
-      || productPrice
-      || null;
-    if (!price && deepInfo && left() > 600) {
+    /* 店铺优先人均；商品优先分享文案里的价格，其次页面实价，弱匹配的搜索卡片价靠后 */
+    const avg = parseAvgPrice(rawText) || (direct && direct.avg) || null;
+    let price = null;
+    if (isPlace && avg) {
+      price = { min: avg.min, max: avg.max, kind: 'avg' };
+    } else {
+      price = textPrice
+        || (direct && direct.price && direct.price.kind !== 'avg' ? { min: direct.price.min, max: direct.price.max } : null)
+        || (short && short.price)
+        || (pageInfo && pageInfo.price)
+        || productPrice
+        || null;
+    }
+    const jdBudget = budget(1800);
+    if (!price && deepInfo && jdBudget) {
       const sku = (deepInfo.url || '').match(/\/(\d+)\.html/);
       if (sku) {
         const pj = await withTimeout(requestText(`https://p.3.cn/prices/mgets?skuIds=J_${sku[1]}&type=1`, {
-          ua: UA_POOL[3], referer: 'https://item.m.jd.com/', timeout: 3000
-        }), budget(3000, 500), null);
+          ua: UA_POOL[3], referer: 'https://item.m.jd.com/', timeout: Math.min(2500, jdBudget)
+        }), jdBudget, null);
         if (pj && pj.text) {
           const m = pj.text.match(/"p"\s*:\s*"?([\d.]+)"?/);
           if (m && Number(m[1]) > 0) price = { min: Number(m[1]), max: Number(m[1]) };
@@ -940,6 +1097,7 @@ async function previewLink(input = {}) {
     /* ---------- 图片：精读原图 > 商品卡片图 > 搜索图 > 页面图 ---------- */
     const pageCands = (pageInfo && pageInfo.candidates) || [];
     const imgPool = [
+      ...((direct && direct.images) || []).map((c) => ({ ...c, source: 'origin', kind })),
       ...(baiduPlain.images || []),
       ...(baiduShop.images || []),
       ...(Array.isArray(bing) ? bing : []),
@@ -989,11 +1147,22 @@ async function previewLink(input = {}) {
     } else {
       note = '已自动识别页面主图。';
     }
-    if (price == null && kind === 'product') note += ' 价格未识别到，可在加入前手动填写。';
-    if (deadline && left() < 0) note += ' 网络较慢，已优先返回识别到的结果。';
+    if (price == null && kind === 'product' && !isPlace) note += ' 价格未识别到，可在加入前手动填写。';
+    if (avg) note += ` 人均约 ${avg.min}${avg.max > avg.min ? '～' + avg.max : ''} 元。`;
+    if (deadline && left() < 0) note += ' 已到软截止，返回目前抓到的字段。';
+    if (direct && source === 'origin') note = (isPlace ? '已从店铺页识别图片与人均。' : '已从商品页识别主图与价格。') + (avg ? ` 人均约 ${avg.min}${avg.max > avg.min ? '～' + avg.max : ''} 元。` : '');
 
     return {
-      url: url || null, image, title: title || officialTitle, price, shot, source, note,
+      url: finalUrl || url || null,
+      image,
+      title: title || officialTitle,
+      price,
+      avgPrice: avg ? avg.min : null,
+      avgPriceMax: avg ? avg.max : null,
+      shot,
+      source,
+      note,
+      softTimeout: !!(deadline && left() < 80),
       candidates: ranked.map((c) => ({
         url: c.url, label: c.label || '', source: c.source, score: c.score, w: c.w || 0, h: c.h || 0
       }))
@@ -1014,6 +1183,9 @@ async function previewLink(input = {}) {
 module.exports = {
   previewLink,
   parsePrice,
+  parseAvgPrice,
+  parseDianpingHtml,
+  parseTaobaoHtml,
   hintFrom,
   detectKind,
   baiduImages,
