@@ -17,6 +17,117 @@ const FOOD_DB = {
   '水饺': 240, '包子': 227, '炒饭': 163, '炸鸡': 279, '麻辣烫': 130
 };
 
+/* 每 100g：热量与宏量营养素估算（碳水 / 蛋白质 / 膳食纤维，单位 g）
+   热量与 FOOD_DB 对齐，宏量取常见食物成分表的量级，供识别失败或模型漏填时兜底。 */
+const NUTRITION_DB = {
+  '米饭': { kcal: 116, carbs: 25.9, protein: 2.6, fiber: 0.3 },
+  '面条': { kcal: 110, carbs: 22.0, protein: 3.4, fiber: 0.8 },
+  '馒头': { kcal: 223, carbs: 47.0, protein: 7.0, fiber: 1.5 },
+  '全麦面包': { kcal: 246, carbs: 43.0, protein: 9.0, fiber: 6.5 },
+  '白面包': { kcal: 312, carbs: 58.0, protein: 8.0, fiber: 2.4 },
+  '鸡蛋': { kcal: 144, carbs: 1.5, protein: 13.0, fiber: 0 },
+  '鸡胸肉': { kcal: 133, carbs: 0, protein: 20.0, fiber: 0 },
+  '鸡腿': { kcal: 181, carbs: 0, protein: 16.0, fiber: 0 },
+  '牛肉': { kcal: 125, carbs: 0, protein: 20.0, fiber: 0 },
+  '瘦猪肉': { kcal: 143, carbs: 0, protein: 20.0, fiber: 0 },
+  '五花肉': { kcal: 395, carbs: 0, protein: 14.0, fiber: 0 },
+  '三文鱼': { kcal: 208, carbs: 0, protein: 20.0, fiber: 0 },
+  '虾': { kcal: 93, carbs: 0, protein: 18.0, fiber: 0 },
+  '豆腐': { kcal: 82, carbs: 2.0, protein: 8.0, fiber: 0.4 },
+  '牛奶': { kcal: 54, carbs: 5.0, protein: 3.0, fiber: 0 },
+  '酸奶': { kcal: 72, carbs: 10.0, protein: 3.0, fiber: 0 },
+  '豆浆': { kcal: 31, carbs: 1.2, protein: 3.0, fiber: 0.5 },
+  '苹果': { kcal: 52, carbs: 14.0, protein: 0.3, fiber: 2.4 },
+  '香蕉': { kcal: 89, carbs: 23.0, protein: 1.1, fiber: 2.6 },
+  '橙子': { kcal: 47, carbs: 12.0, protein: 0.9, fiber: 2.4 },
+  '葡萄': { kcal: 43, carbs: 10.0, protein: 0.4, fiber: 0.4 },
+  '西瓜': { kcal: 25, carbs: 6.0, protein: 0.6, fiber: 0.3 },
+  '草莓': { kcal: 32, carbs: 7.7, protein: 0.7, fiber: 2.0 },
+  '西兰花': { kcal: 34, carbs: 7.0, protein: 2.8, fiber: 2.6 },
+  '番茄': { kcal: 20, carbs: 3.9, protein: 0.9, fiber: 1.2 },
+  '黄瓜': { kcal: 16, carbs: 3.6, protein: 0.7, fiber: 0.5 },
+  '生菜': { kcal: 15, carbs: 2.9, protein: 1.4, fiber: 1.3 },
+  '土豆': { kcal: 77, carbs: 17.0, protein: 2.0, fiber: 2.2 },
+  '红薯': { kcal: 86, carbs: 20.0, protein: 1.6, fiber: 3.0 },
+  '玉米': { kcal: 112, carbs: 19.0, protein: 4.0, fiber: 2.7 },
+  '可乐': { kcal: 43, carbs: 10.6, protein: 0, fiber: 0 },
+  '薯条': { kcal: 312, carbs: 41.0, protein: 3.4, fiber: 3.8 },
+  '汉堡': { kcal: 295, carbs: 30.0, protein: 15.0, fiber: 1.5 },
+  '披萨': { kcal: 266, carbs: 33.0, protein: 11.0, fiber: 2.3 },
+  '方便面': { kcal: 472, carbs: 60.0, protein: 9.0, fiber: 2.0 },
+  '巧克力': { kcal: 546, carbs: 60.0, protein: 7.0, fiber: 3.0 },
+  '蛋糕': { kcal: 347, carbs: 50.0, protein: 5.0, fiber: 1.0 },
+  '冰淇淋': { kcal: 207, carbs: 24.0, protein: 3.5, fiber: 0 },
+  '珍珠奶茶': { kcal: 90, carbs: 16.0, protein: 0.5, fiber: 0.2 },
+  '拿铁': { kcal: 55, carbs: 5.0, protein: 2.5, fiber: 0 },
+  '水饺': { kcal: 240, carbs: 30.0, protein: 10.0, fiber: 1.0 },
+  '包子': { kcal: 227, carbs: 40.0, protein: 8.0, fiber: 1.2 },
+  '炒饭': { kcal: 163, carbs: 25.0, protein: 5.0, fiber: 0.6 },
+  '炸鸡': { kcal: 279, carbs: 15.0, protein: 18.0, fiber: 0.5 },
+  '麻辣烫': { kcal: 130, carbs: 12.0, protein: 8.0, fiber: 1.5 }
+};
+
+function lookupNutrition(name) {
+  const raw = String(name || '').replace(/\s+/g, '');
+  if (!raw) return null;
+  if (NUTRITION_DB[raw]) return NUTRITION_DB[raw];
+  let best = null;
+  let bestLen = 0;
+  Object.keys(NUTRITION_DB).forEach((key) => {
+    if (raw.includes(key) || key.includes(raw)) {
+      if (key.length > bestLen) { best = NUTRITION_DB[key]; bestLen = key.length; }
+    }
+  });
+  return best;
+}
+
+function scaleNutrition(per100, grams) {
+  const base = per100 || {};
+  const g = Number(grams);
+  const factor = Number.isFinite(g) && g > 0 ? g / 100 : 0;
+  const round = (n) => Math.round((Number(n) || 0) * factor * 10) / 10;
+  return {
+    kcal: Math.max(0, Math.round((Number(base.kcal) || 0) * factor)),
+    carbs: round(base.carbs),
+    protein: round(base.protein),
+    fiber: round(base.fiber)
+  };
+}
+
+/* 把视觉模型返回的条目补成稳定结构：缺的碳水/蛋白/纤维用食物库按重量估算 */
+function normalizeFoodItems(items) {
+  return (Array.isArray(items) ? items : []).map((it) => {
+    const src = it || {};
+    const name = String(src.name || '未识别').trim().slice(0, 40) || '未识别';
+    const grams = Math.max(1, Math.round(Number(src.grams) || 0) || 100);
+    const numOrNull = (v) => {
+      if (v == null || v === '') return null;
+      const n = Number(v);
+      return Number.isFinite(n) ? Math.max(0, Math.round(n * 10) / 10) : null;
+    };
+    let kcal = Math.max(0, Math.round(Number(src.kcal) || 0));
+    let carbs = numOrNull(src.carbs != null ? src.carbs : src.carbohydrate);
+    let protein = numOrNull(src.protein);
+    let fiber = numOrNull(src.fiber != null ? src.fiber : src.fibre);
+    const known = lookupNutrition(name);
+    if (known) {
+      const scaled = scaleNutrition(known, grams);
+      if (!kcal) kcal = scaled.kcal;
+      if (carbs == null) carbs = scaled.carbs;
+      if (protein == null) protein = scaled.protein;
+      if (fiber == null) fiber = scaled.fiber;
+    }
+    return {
+      name,
+      grams,
+      kcal,
+      carbs: carbs == null ? 0 : carbs,
+      protein: protein == null ? 0 : protein,
+      fiber: fiber == null ? 0 : fiber
+    };
+  }).filter((it) => it.name);
+}
+
 /* ---------- 连锁饮品库 ----------
    base  = 标准糖 + 标准冰 时每杯热量 (kcal)
    sugar = 其中来自糖的热量 (kcal)，用于按糖度折算
@@ -461,3 +572,9 @@ const LEDGER_CATEGORIES = {
 
 /* ---------- 观影类型 ---------- */
 const WATCH_TYPES = ['电影', '电视剧', '综艺', '纪录片', '动漫', '番剧'];
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    FOOD_DB, NUTRITION_DB, lookupNutrition, scaleNutrition, normalizeFoodItems
+  };
+}

@@ -1,104 +1,81 @@
 # About Me · 我的生活记录
 
-一个「暖色咖啡馆手写板」风格的每日生活记录网页，含 Node/Express 后端与 Netlify 云函数。
+一个「暖色咖啡馆手写板」风格的每日生活记录网页：Express 后端 + `public/` 静态前端。
 
-线上地址：<http://work.willowww.wang/>
+线上地址：<https://aboutme.willowww.wang/>（Vercel，Express）。另有 Netlify 站点可指向 `work.willowww.wang`。
 
-> `.env` 内含短信/视觉模型的密钥，已通过 `.gitignore` 排除，**不会**进入 Git 仓库。
-> 换机器后请复制 `.env.example` 为 `.env` 并自行填写。
+> `.env` 里的短信 / 视觉密钥已通过 `.gitignore` 排除，**不要**把真实 Key 提交进仓库。
+> 换机器后复制 `.env.example` 为 `.env` 再填写。
 
 ## 目录结构
 
 ```
-人工智能final/
-├── public/                 只用于发布的静态页面（可安全拖到 Netlify）
+├── public/                 静态页面（Vercel 会直接托管这个目录）
 │   ├── index.html
 │   ├── styles.css
 │   ├── app.js
-│   ├── data.js
-│   ├── assets/
-│   └── _redirects          /api/* → Netlify Functions
-├── netlify/functions/
-│   ├── link-preview.js     商品/店铺链接识别（无 CORS 限制）
-│   ├── health.js
-│   └── lib/link-preview-core.js
-├── server.js               本地 Express 后端
-├── netlify.toml            Netlify 发布目录与函数目录
+│   └── data.js             食物热量 + 碳水 / 蛋白质 / 膳食纤维
+├── server.js               Express：登录、同步、识图、链接预览
+├── netlify/functions/      Netlify 备用函数（主站走 Vercel 上的 server.js）
+├── vercel.json             函数最长 20 秒；链接预览内部约 8 秒软截止
 ├── package.json
-├── .env.example
-└── data/db.json            本地运行后自动生成
+└── .env.example
 ```
 
-> 发布时只上传 `public/` 和 `netlify/functions/`。不要把根目录直接拖到 Netlify，否则 `server.js`、`data/db.json` 等文件会被公开。
-
-## 启动方式
-
-### 方式一：带本地后端（功能完整）
+## 本地启动
 
 ```bash
-cd "人工智能结课作业网页"
 npm install
 npm start
 ```
 
-然后浏览器打开 <http://localhost:3000>。
+浏览器打开 <http://localhost:3000>。
 
-### 方式二：直接打开静态页（离线/Netlify）
+## 部署到 Vercel（aboutme.willowww.wang）
 
-打开 `public/index.html`，或部署 `public/`。数据保存在本机浏览器（localStorage）。
+`server.js` 导出 Express 应用，并在非 Vercel 环境下 `listen`。Vercel 会把它识别成一个函数；`public/` 由 CDN 提供静态文件。
 
-## 部署到 Netlify
+1. 把本仓库接到 Vercel 项目，生产分支用 `main`。
+2. 域名 `aboutme.willowww.wang` 已绑定时，合并到 `main` 会自动发布。
+3. 在 Vercel → Settings → Environment Variables 配置（不要把 Key 写进代码）：
 
-### 方式 A：连接 GitHub 仓库（推荐，之后 push 自动上线）
+| 变量 | 必填 | 说明 |
+| --- | --- | --- |
+| `VISION_PROVIDER` | 建议 | `deepseek`。也可改为 `zhipu` / `qwen` / `openai` |
+| `VISION_API_KEY` | 要识图就必填 | 用户的 DeepSeek API Key |
+| `VISION_MODEL` | 可选 | 默认 `deepseek-flash`（官方图像理解模型） |
+| `VISION_BASE_URL` | 可选 | 默认 `https://api.deepseek.com`。`https://api.deepseek.com/v1` 同样可用，服务会自动补 `/chat/completions` |
 
-仓库：<https://github.com/sylviawwforever/githubwenn>
+不设置 `VISION_API_KEY` 时，首页可以正常打开；拍照识别会提示缺少 Key，手动录入和常见食物库估算不受影响。
 
-1. Netlify → **Add new site** → **Import an existing project** → GitHub
-2. 选择 `githubwenn`，构建设置会自动读取 `netlify.toml`（发布目录 `public`、函数目录 `netlify/functions`），一路 Next 即可
-3. 部署完成后在 **Domain management** 绑定域名 `work.willowww.wang`
+`/api/link-preview` 有大约 8 秒的软截止（可用 `LINK_PREVIEW_BUDGET_MS` 调整，上限 12 秒），函数本身在 `vercel.json` 里限制为 20 秒，避免大众点评等慢页面把请求挂死。
 
-以后只要 `git push` 到 `main`，线上自动更新。
+登录后的云端同步依赖进程内的 JSON 数据文件。Vercel 函数磁盘是临时的，实例回收后云端副本可能丢失；这时页面会静默退回本机 localStorage，不再弹出「读取云端数据失败」。本机 `npm start` 的长驻进程可以正常跨刷新同步。
 
-### 方式 B：拖放上传
+## 食物图片识别
 
-把 `public/` 与 `netlify/` 一起打包拖到 Netlify 站点的 Deploys 页面；
-本项目已提供 `部署到线上.command`，双击后按提示操作即可。
-
-### 方式 C：命令行
-
-```bash
-NETLIFY_AUTH_TOKEN=你的Token npx netlify-cli deploy --prod --dir=public --functions=netlify/functions --site 3fc00d6b-329b-4f0e-bad0-d31bcad6a439
-```
-
-或者使用 Netlify API 的文件摘要方式上传 `public/` 静态文件，并把 `netlify/functions/link-preview.js`、`health.js` 及其 `lib/` 目录分别打成 zip 作为函数上传。
-
-`public/_redirects` 已配置：
+默认走 DeepSeek：
 
 ```
-/api/link-preview  /.netlify/functions/link-preview  200
-/api/health        /.netlify/functions/health        200
+VISION_PROVIDER=deepseek
+VISION_API_KEY=你的DeepSeekKey
+VISION_BASE_URL=https://api.deepseek.com
+VISION_MODEL=deepseek-flash
 ```
+
+`deepseek-flash` 接受 OpenAI 兼容的 `image_url`（支持 data URL）。`deepseek-v4-pro` 不能看图，不要改成它。
+
+仍可改回智谱、通义或 OpenAI，见 `.env.example`。识别结果包含热量，以及每项食物的碳水、蛋白质、膳食纤维；缺省时按 `public/data.js` 里的常见食物库估算。今日摄入会汇总这三项。
 
 ## With Friends 链接识别
 
-购物车与 Data 现在使用同源的 `/api/link-preview`：
+购物车和 Data 使用同源的 `POST /api/link-preview`：
 
-- 淘宝/天猫：从分享短链提取商品 ID 与价格，再按商品名匹配百度图片库，返回真实商品图和价格。
-- 大众点评、美团、百度地图：按店铺名匹配门面/环境图。
-- 请求之间加入随机的人类浏览节奏与 UA 轮换，降低触发风控概率；同一链接结果缓存 10 分钟，重复识别接近秒开。
-- 所有平台都失败时才使用 `image.thum.io` 整页截图兜底。
+- 淘宝 / 天猫 / 淘口令短链：解析商品名、价格、主图和候选图。
+- 大众点评（含 `dpurl.cn`）：解析店名、店铺图，人均写入 `avgPrice`（同时放进 `price.kind = "avg"`）。
+- 请求前有随机停顿和 UA 轮换；被拦后放慢再试，不会对同一页并发猛刷。
+- 到软截止就返回已经拿到的字段。
 
-## 开启「食物图片识别」
+## 部署到 Netlify（可选）
 
-编辑 `.env`（可从 `.env.example` 复制）：
-
-```
-VISION_PROVIDER=zhipu
-VISION_API_KEY=你的Key
-```
-
-- `zhipu`：智谱 GLM-4V，注册即送免费额度，默认模型 `glm-4v-flash`。
-- `qwen`：通义千问 VL，默认 `qwen-vl-plus`。
-- `openai`：默认 `gpt-4o-mini`。
-
-重启 `npm start` 后，饮食页上传图片即可自动识别食物与热量。
+`netlify.toml` 仍发布 `public/`，函数在 `netlify/functions/`。主站 aboutme.willowww.wang 走的是上面的 Vercel Express，不依赖这些函数。

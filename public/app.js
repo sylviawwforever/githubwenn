@@ -39,6 +39,17 @@ const API_ORIGIN = SERVED ? '' : 'http://localhost:3000';
 let ONLINE = SERVED;
 let token = store.get('token', '');
 let currentUser = store.get('user', null);
+/* 登录过期后仍沿用这份本地数据，避免一切回访客分区看起来像丢记录 */
+let pinnedSpace = '';
+
+function clearAuth() {
+  if (currentUser && currentUser.code) pinnedSpace = 'u_' + currentUser.code;
+  token = '';
+  currentUser = null;
+  store.del('token');
+  store.del('user');
+  try { renderIdentity(); } catch (_) {}
+}
 
 async function api(path, { method = 'GET', body, auth = true } = {}) {
   const headers = { 'Content-Type': 'application/json' };
@@ -48,10 +59,17 @@ async function api(path, { method = 'GET', body, auth = true } = {}) {
     res = await fetch(API_ORIGIN + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
   } catch (e) {
     ONLINE = false;
-    throw new Error('后端未连接：请在项目文件夹运行 npm start 后刷新本页');
+    const err = new Error('后端未连接：请在项目文件夹运行 npm start 后刷新本页');
+    err.status = 0;
+    throw err;
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || ('请求失败 ' + res.status));
+  if (!res.ok) {
+    const err = new Error(data.error || ('请求失败 ' + res.status));
+    err.status = res.status;
+    if (res.status === 401 && auth && token) clearAuth();
+    throw err;
+  }
   return data;
 }
 
@@ -59,7 +77,7 @@ async function api(path, { method = 'GET', body, auth = true } = {}) {
 const LIST_KEYS = ['todos', 'diet', 'exercise', 'ledger', 'sleep', 'goals', 'collection', 'watch', 'shares', 'cart', 'places'];
 const emptyData = () => Object.fromEntries(LIST_KEYS.map(k => [k, []]));
 
-const spaceId = () => (currentUser && currentUser.code) ? ('u_' + currentUser.code) : 'guest';
+const spaceId = () => pinnedSpace || ((currentUser && currentUser.code) ? ('u_' + currentUser.code) : 'guest');
 const get = (k) => store.get(spaceId() + '__' + k, []);
 const setScoped = (k, v) => store.set(spaceId() + '__' + k, v);
 const set = (k, v) => { setScoped(k, v); scheduleSync(); };
@@ -211,6 +229,7 @@ $('#verifyBtn').addEventListener('click', async () => {
   try {
     const r = await api('/api/auth/verify', { method: 'POST', auth: false, body: { phone, code } });
     token = r.token; currentUser = r.user;
+    pinnedSpace = '';
     store.set('token', token); store.set('user', currentUser);
     migrateGuestToUser();
     loginModal.classList.remove('is-open');
@@ -230,6 +249,7 @@ $('#saveProfile').addEventListener('click', async () => {
   toast('已保存');
 });
 $('#logoutBtn').addEventListener('click', () => {
+  pinnedSpace = '';
   token = ''; currentUser = null; store.del('token'); store.del('user');
   friendFeed = { shares: [], cart: [], places: [] };
   renderIdentity(); renderAll();
@@ -238,6 +258,10 @@ $('#logoutBtn').addEventListener('click', () => {
 });
 
 async function loadFromServer() {
+  if (!token) {
+    if (currentUser) clearAuth();
+    return;
+  }
   try {
     const r = await api('/api/data');
     const serverEmpty = LIST_KEYS.every(k => !(r.data[k] || []).length);
@@ -245,7 +269,11 @@ async function loadFromServer() {
     if (serverEmpty && localHas) await pushData();
     else applyData(r.data);
     await loadFriendFeed();
-  } catch (e) { if (e.message !== 'OFFLINE') toast('读取云端数据失败：' + e.message); }
+  } catch (e) {
+    if (typeof shouldToastSyncError === 'function' && !shouldToastSyncError(e)) return;
+    if (e.status === 401 || /未登录|登录已过期|后端未连接/.test(e.message || '')) return;
+    toast('读取云端数据失败：' + e.message);
+  }
 }
 
 /* =========================================================
@@ -376,29 +404,66 @@ function updateDietPerLabel() {
   $('#dietPerLabel').textContent = `每${u}热量 kcal`;
   $('#dietGrams').value = (u === '克') ? 100 : 1;
 }
-function dietAutoFill() {
+function portionGrams(amount, unit) {
+  return unit === '克' ? amount : amount * 100;
+}
+function fmtMacro(n) {
+  const x = Math.round(Number(n) * 10) / 10;
+  if (!Number.isFinite(x)) return '0';
+  return Number.isInteger(x) ? String(x) : x.toFixed(1);
+}
+function fillDietEstimate() {
   const n = $('#dietName').value.trim();
   const u = dietUnit();
-  if (n in FOOD_DB) {
-    const per100 = FOOD_DB[n];
+  const amount = Number($('#dietGrams').value) || 0;
+  const known = typeof lookupNutrition === 'function' ? lookupNutrition(n) : null;
+  if (n in FOOD_DB || known) {
+    const per100 = known ? known.kcal : FOOD_DB[n];
     const perUnit = (u === '克') ? Math.round(per100 / 100 * 10) / 10 : per100;
     $('#dietKcalPer100').value = perUnit;
-    $('#dietHint').textContent = (u === '克')
-      ? `已识别「${n}」：每 100g 约 ${per100} kcal，已换算为每克 ${perUnit} kcal。`
-      : `已识别「${n}」：1${u} 暂按 100g 估算约 ${perUnit} kcal（可手动修改）。`;
+    if (known && $('#dietCarbs')) {
+      const scaled = scaleNutrition(known, portionGrams(amount, u));
+      $('#dietCarbs').value = scaled.carbs;
+      $('#dietProtein').value = scaled.protein;
+      $('#dietFiber').value = scaled.fiber;
+      $('#dietHint').textContent = `已按食物库估算「${n}」：热量 ${Math.round(perUnit * amount)} kcal，碳水 ${fmtMacro(scaled.carbs)}g，蛋白质 ${fmtMacro(scaled.protein)}g，膳食纤维 ${fmtMacro(scaled.fiber)}g。可手改。`;
+    } else {
+      $('#dietHint').textContent = (u === '克')
+        ? `已识别「${n}」：每 100g 约 ${per100} kcal，已换算为每克 ${perUnit} kcal。`
+        : `已识别「${n}」：1${u} 暂按 100g 估算约 ${perUnit} kcal（可手动修改）。`;
+    }
+  } else if ($('#dietCarbs')) {
+    $('#dietCarbs').value = 0;
+    $('#dietProtein').value = 0;
+    $('#dietFiber').value = 0;
   }
 }
-$('#dietName').addEventListener('input', dietAutoFill);
-$('#dietUnit').addEventListener('change', () => { updateDietPerLabel(); dietAutoFill(); });
+$('#dietName').addEventListener('input', fillDietEstimate);
+$('#dietGrams').addEventListener('input', fillDietEstimate);
+$('#dietUnit').addEventListener('change', () => { updateDietPerLabel(); fillDietEstimate(); });
 if ($('#dietUnit')) updateDietPerLabel();
 $('#dietForm').addEventListener('submit', e => {
   e.preventDefault();
   const name = $('#dietName').value.trim();
   const amount = Number($('#dietGrams').value), unit = dietUnit(), perUnit = Number($('#dietKcalPer100').value);
   if (!name || amount <= 0 || perUnit < 0) { toast('请填写完整信息'); return; }
-  addDiet({ type: 'food', name, amount, unit, perUnit, kcal: Math.round(perUnit * amount), date: today() });
+  const macroOf = (id) => {
+    const el = $(id);
+    if (!el || el.value === '') return null;
+    const n = Number(el.value);
+    return Number.isFinite(n) ? Math.max(0, Math.round(n * 10) / 10) : null;
+  };
+  addDiet({
+    type: 'food', name, amount, unit, perUnit,
+    kcal: Math.round(perUnit * amount),
+    carbs: macroOf('#dietCarbs'),
+    protein: macroOf('#dietProtein'),
+    fiber: macroOf('#dietFiber'),
+    date: today()
+  });
   $('#dietName').value = ''; updateDietPerLabel(); $('#dietKcalPer100').value = 0;
-  $('#dietHint').textContent = '选择常见食物会自动填充热量，也可手动修改。';
+  ['#dietCarbs', '#dietProtein', '#dietFiber'].forEach(id => { if ($(id)) $(id).value = 0; });
+  $('#dietHint').textContent = '选择常见食物会自动填充热量和营养素，也可手动修改。';
 });
 function addDiet(rec) { set('diet', [{ id: uid(), ...rec }, ...get('diet')]); renderDiet(); updateHome(); }
 
@@ -450,9 +515,10 @@ function bindPhotoDrop(el) {
 }
 bindPhotoDrop($('#photoDrop'));
 bindPhotoDrop($('#photoPreviewWrap'));
-api('/api/health', { auth: false }).then(h => {
-  if (h && !h.vision) $('#analyzeHint').textContent = '视觉模型未配置：请在后端 .env 设置 VISION_PROVIDER / VISION_API_KEY 后重启服务。';
-}).catch(() => {});
+function visionHint(configured) {
+  if (configured) return '上传或拖入照片后点识别，会估算热量、碳水、蛋白质和膳食纤维。';
+  return '视觉模型未配置：请在 Vercel 设置 VISION_PROVIDER=deepseek 与 VISION_API_KEY（DeepSeek Key）。未配置时仍可用下方常见食物手动录入。';
+}
 ['dragover', 'drop'].forEach(t => window.addEventListener(t, e => {
   if (!e.dataTransfer || ![...e.dataTransfer.types].includes('Files')) return;
   if (document.querySelector('#view-diet.is-active')) e.preventDefault();
@@ -478,10 +544,15 @@ $('#analyzeBtn').addEventListener('click', async () => {
         <p class="analyze-note">${esc(r.note || '识别结果（可手动修正后加入）：')}</p>
         ${r.items.map((it, i) => `
           <div class="analyze-item" data-i="${i}">
-            <input class="pill-input" data-f="name" value="${esc(it.name)}">
-            <input class="pill-input" data-f="grams" type="number" value="${it.grams}" title="克">
-            <input class="pill-input" data-f="kcal" type="number" value="${it.kcal}" title="kcal">
+            <input class="pill-input" data-f="name" value="${esc(it.name)}" title="名称">
+            <input class="pill-input" data-f="grams" type="number" min="0" step="1" value="${it.grams}" title="克">
+            <input class="pill-input" data-f="kcal" type="number" min="0" step="1" value="${it.kcal}" title="kcal">
             <button class="btn btn--blue" data-add-analyzed="${i}">加入</button>
+            <div class="analyze-macros">
+              <label>碳水 g<input class="pill-input" data-f="carbs" type="number" min="0" step="0.1" value="${it.carbs ?? 0}"></label>
+              <label>蛋白质 g<input class="pill-input" data-f="protein" type="number" min="0" step="0.1" value="${it.protein ?? 0}"></label>
+              <label>膳食纤维 g<input class="pill-input" data-f="fiber" type="number" min="0" step="0.1" value="${it.fiber ?? 0}"></label>
+            </div>
           </div>`).join('')}
         <button class="btn btn--outline" id="addAllAnalyzed" style="width:100%;margin-top:10px">全部加入今日饮食</button>`;
       window.__analyzed = r.items;
@@ -489,31 +560,45 @@ $('#analyzeBtn').addEventListener('click', async () => {
   } catch (e) {
     $('#analyzeResult').innerHTML = `<p class="analyze-note">识别失败：${esc(e.message)}</p>`;
   } finally {
-    btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> AI 识别热量';
+    btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> AI 识别营养';
   }
 });
 $('#analyzeResult').addEventListener('click', e => {
   const rowOf = (i) => document.querySelector(`.analyze-item[data-i="${i}"]`);
   const readRow = (i) => {
     const row = rowOf(i);
+    const num = (sel) => {
+      const el = row.querySelector(sel);
+      const n = el ? Number(el.value) : 0;
+      return Number.isFinite(n) ? Math.max(0, Math.round(n * 10) / 10) : 0;
+    };
     return {
       name: row.querySelector('[data-f="name"]').value.trim(),
       grams: Number(row.querySelector('[data-f="grams"]').value) || 0,
-      kcal: Number(row.querySelector('[data-f="kcal"]').value) || 0
+      kcal: Number(row.querySelector('[data-f="kcal"]').value) || 0,
+      carbs: num('[data-f="carbs"]'),
+      protein: num('[data-f="protein"]'),
+      fiber: num('[data-f="fiber"]')
     };
   };
+  const toRecord = (it) => ({
+    type: 'food', name: it.name, amount: it.grams, unit: '克',
+    perUnit: it.grams ? Math.round(it.kcal / it.grams * 10) / 10 : it.kcal,
+    kcal: it.kcal, carbs: it.carbs, protein: it.protein, fiber: it.fiber,
+    date: today(), ai: true
+  });
   const one = e.target.closest('[data-add-analyzed]');
   if (one) {
     const i = one.dataset.addAnalyzed, it = readRow(i);
     if (!it.name) return;
-    addDiet({ type: 'food', name: it.name, amount: it.grams, unit: '克', perUnit: it.grams ? Math.round(it.kcal / it.grams * 10) / 10 : it.kcal, kcal: it.kcal, date: today(), ai: true });
+    addDiet(toRecord(it));
     toast('已加入：' + it.name);
     return;
   }
   if (e.target.closest('#addAllAnalyzed')) {
     (window.__analyzed || []).forEach((_, i) => {
       const it = readRow(i);
-      if (it.name) addDiet({ type: 'food', name: it.name, amount: it.grams, unit: '克', perUnit: it.grams ? Math.round(it.kcal / it.grams * 10) / 10 : it.kcal, kcal: it.kcal, date: today(), ai: true });
+      if (it.name) addDiet(toRecord(it));
     });
     $('#analyzeResult').innerHTML = '';
     $('#photoClear').click();
@@ -630,9 +715,15 @@ $('#customDrinkForm').addEventListener('submit', e => {
 
 /* --- diet list --- */
 function dietFoodMeta(d) {
-  if (d.amount != null) { const u = d.unit || '克'; return `${d.amount} ${u} · ${d.perUnit} kcal/${u}`; }
-  if (d.grams != null) return `${d.grams} g · ${d.per100} kcal/100g`;
-  return '';
+  let base = '';
+  if (d.amount != null) { const u = d.unit || '克'; base = `${d.amount} ${u} · ${d.perUnit} kcal/${u}`; }
+  else if (d.grams != null) base = `${d.grams} g · ${d.per100} kcal/100g`;
+  const macros = [
+    d.carbs != null ? `碳水 ${fmtMacro(d.carbs)}g` : '',
+    d.protein != null ? `蛋白质 ${fmtMacro(d.protein)}g` : '',
+    d.fiber != null ? `膳食纤维 ${fmtMacro(d.fiber)}g` : ''
+  ].filter(Boolean).join(' · ');
+  return [base, macros].filter(Boolean).join(' · ');
 }
 function renderDiet() {
   const list = get('diet').filter(d => d.date === today());
@@ -647,7 +738,11 @@ function renderDiet() {
       <button class="icon-btn" data-act="del"><i class="fa-regular fa-trash-can"></i></button>
     </li>`).join('');
   $('#dietEmpty').hidden = list.length > 0;
-  $('#dietTotal').textContent = list.reduce((s, d) => s + d.kcal, 0);
+  $('#dietTotal').textContent = list.reduce((s, d) => s + (Number(d.kcal) || 0), 0);
+  const sumM = (key) => Math.round(list.reduce((s, d) => s + (Number(d[key]) || 0), 0) * 10) / 10;
+  if ($('#dietCarbsTotal')) $('#dietCarbsTotal').textContent = fmtMacro(sumM('carbs'));
+  if ($('#dietProteinTotal')) $('#dietProteinTotal').textContent = fmtMacro(sumM('protein'));
+  if ($('#dietFiberTotal')) $('#dietFiberTotal').textContent = fmtMacro(sumM('fiber'));
   $('#dietCount').textContent = `共 ${list.length} 条`;
 }
 $('#dietList').addEventListener('click', e => {
@@ -963,7 +1058,7 @@ function parseShareText(raw) {
   let name = (text.match(/「([^」]+)」/) || [])[1] || '';
   if (!name) {
     const brackets = (text.match(/【([^】]+)】/g) || []).map(s => s.slice(1, -1))
-      .filter(s => !/淘宝|天猫|京东|拼多多|小红书|会员|抢先|假一赔|旗舰店|复制|分享/.test(s));
+      .filter(s => !/淘宝|天猫|京东|拼多多|小红书|大众点评|美团|百度地图|会员|抢先|假一赔|旗舰店|复制|分享/.test(s));
     name = brackets[0] || '';
   }
   /* 兜底：链接前后的正文就是商品名/店铺名（淘宝新版分享格式：【淘宝】链接 商品名） */
@@ -980,14 +1075,20 @@ function parseShareText(raw) {
   }
   let priceMin = null, priceMax = null;
   const range = text.match(/(\d+(?:\.\d+)?)\s*(?:元)?\s*[-~至]\s*(\d+(?:\.\d+)?)\s*元/);
-  if (range) { priceMin = +range[1]; priceMax = +range[2]; }
+  if (range && !/人均/.test(range[0])) { priceMin = +range[1]; priceMax = +range[2]; }
   else {
-    const m = text.match(/(?:券后|到手价|活动价|售价|现价|价格|一口价)\s*[:：]?\s*[￥¥]?\s*(\d+(?:\.\d+)?)/)
-      || text.match(/(?:￥|¥)\s*(\d+(?:\.\d+)?)/)
-      || text.match(/(\d+(?:\.\d+)?)\s*元/);
+    const withoutAvg = text.replace(/人均(?:消费|价格)?\s*[:：]?\s*[￥¥]?\s*\d+(?:\.\d+)?\s*(?:元|\/人)?(?:\s*[-~至]\s*\d+(?:\.\d+)?\s*元?)?/g, ' ');
+    const m = withoutAvg.match(/(?:券后|到手价|活动价|售价|现价|价格|一口价)\s*[:：]?\s*[￥¥]?\s*(\d+(?:\.\d+)?)/)
+      || withoutAvg.match(/(?:￥|¥)\s*(\d+(?:\.\d+)?)/)
+      || withoutAvg.match(/(\d+(?:\.\d+)?)\s*元/);
     if (m) { priceMin = priceMax = +m[1]; }
   }
-  return { url, name, priceMin, priceMax };
+  let avgPrice = null, avgPriceMax = null;
+  const avgRange = text.match(/人均(?:消费|价格)?\s*[:：]?\s*[￥¥]?\s*(\d+(?:\.\d+)?)\s*(?:元)?\s*[-~至]\s*(\d+(?:\.\d+)?)/);
+  const avgOne = text.match(/人均(?:消费|价格)?\s*[:：]?\s*[￥¥]?\s*(\d+(?:\.\d+)?)/);
+  if (avgRange) { avgPrice = +avgRange[1]; avgPriceMax = +avgRange[2]; }
+  else if (avgOne) { avgPrice = avgPriceMax = +avgOne[1]; }
+  return { url, name, priceMin, priceMax, avgPrice, avgPriceMax };
 }
 function detectPlatform(url) {
   if (/dianping\.com|dpurl\.cn/.test(url)) return 'dianping';
@@ -1022,7 +1123,7 @@ async function fetchPreview(url, rawText = '', kind = 'product') {
   if (cached) return cached;
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 9000);
+    const timer = setTimeout(() => ctrl.abort(), 13000);
     const res = await fetch(API_ORIGIN + '/api/link-preview', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1126,7 +1227,15 @@ function handleAddNote(btn) {
       .catch(err => toast('备注失败：' + err.message));
   }
 }
+function avgText(min, max) {
+  if (min == null && max == null) return '';
+  if (min != null && max != null && max > min) return `人均 ${min}～${max}元`;
+  return `人均 ${min != null ? min : max}元`;
+}
 function priceOf(p) {
+  if (p.avgPrice != null || (p.priceKind === 'avg' && p.price != null)) {
+    return avgText(p.avgPrice != null ? p.avgPrice : p.price, p.avgPriceMax != null ? p.avgPriceMax : p.price);
+  }
   if (p.priceMin != null || p.priceMax != null) return formatPrice(p.priceMin, p.priceMax);
   if (p.price != null) return `${p.price}元`;
   return '价格未知';
@@ -1159,7 +1268,10 @@ async function enrichCart() {
   let cands = [];
   if (info) {
     if (!name && info.title) name = info.title;
-    if (info.price) { if (info.price.min != null) priceMin = info.price.min; if (info.price.max != null) priceMax = info.price.max; }
+    if (info.price && info.price.kind !== 'avg') {
+      if (info.price.min != null) priceMin = info.price.min;
+      if (info.price.max != null) priceMax = info.price.max;
+    }
     image = info.image || null;
     cands = info.candidates || [];
   }
@@ -1237,6 +1349,7 @@ function updatePlacePreview() {
   el.hidden = false;
   $('#placePreviewName').textContent = parsed.name || '（未识别到名称，可点识别抓取）';
   $('#placePreviewPlatform').textContent = parsed.url ? PLATFORM[detectPlatform(parsed.url)].label : '—';
+  if ($('#placePreviewAvg')) $('#placePreviewAvg').textContent = avgText(parsed.avgPrice, parsed.avgPriceMax) || '人均识别中…';
   $('#placePreviewLink').textContent = parsed.url || '（未识别到链接）';
   $('#placePreviewImg').innerHTML = '<i class="fa-solid fa-image"></i>';
   $('#placeCandStrip').hidden = true; $('#placeCandStrip').innerHTML = '';
@@ -1250,14 +1363,21 @@ async function enrichPlace() {
   $('#placeHint').textContent = '正在抓取店铺名称与图片…（大众点评等有反爬会自动换节奏重试）';
   const info = await fetchPreview(isHttp ? parsed.url : '', placeRaw.value, 'place');
   let name = parsed.name, image = null, cands = [];
+  let avgPrice = parsed.avgPrice, avgPriceMax = parsed.avgPriceMax;
   if (info) {
-    // 分享文字里往往带着店铺全名（点评/地图都会给），比网页标题更准
     if (!name && info.title) name = info.title;
     image = info.image || null;
     cands = info.candidates || [];
+    if (info.avgPrice != null) avgPrice = info.avgPrice;
+    if (info.avgPriceMax != null) avgPriceMax = info.avgPriceMax;
+    if (avgPrice == null && info.price && info.price.kind === 'avg') {
+      avgPrice = info.price.min;
+      avgPriceMax = info.price.max;
+    }
   }
-  placeParsed = { url: parsed.url, name, image, cands, platform: detectPlatform(parsed.url) };
+  placeParsed = { url: parsed.url, name, image, cands, platform: detectPlatform(parsed.url), avgPrice, avgPriceMax };
   $('#placePreviewName').textContent = name || '（未识别到名称）';
+  if ($('#placePreviewAvg')) $('#placePreviewAvg').textContent = avgText(avgPrice, avgPriceMax) || '未识别到人均';
   setPreviewImg($('#placePreviewImg'), image);
   renderCands($('#placeCandStrip'), cands, image, (pick) => {
     placeParsed.image = pick.url;
@@ -1287,7 +1407,13 @@ $('#placeForm').addEventListener('submit', e => {
   const notes = note ? [{ id: uid(), author: me(), text: note, ts: Date.now() }] : [];
   set('places', [{
     id: uid(), owner: me(), title: data.name || '未命名地点', link: url,
-    platform: data.platform || detectPlatform(url), image: data.image || $('#placeImgUrl').value.trim() || null, notes
+    platform: data.platform || detectPlatform(url),
+    image: data.image || $('#placeImgUrl').value.trim() || null,
+    avgPrice: data.avgPrice != null ? data.avgPrice : null,
+    avgPriceMax: data.avgPriceMax != null ? data.avgPriceMax : null,
+    price: data.avgPrice != null ? data.avgPrice : null,
+    priceKind: data.avgPrice != null ? 'avg' : null,
+    notes
   }, ...get('places')]);
   $('#placeForm').reset(); $('#placePreview').hidden = true; placeParsed = null; placeAutoUrl = '';
   $('#placeHint').textContent = '支持大众点评、百度地图等链接，会自动识别名称与图片。';
@@ -1304,6 +1430,7 @@ function renderPlaces() {
       </div>
       ${p.image ? `<div class="place-card__img"><img src="${esc(p.image)}" alt="${esc(p.title)}" loading="lazy" onerror="imgFail(this)"></div>` : ''}
       <div class="place-card__title">${esc(p.title)}</div>
+      ${(p.avgPrice != null || p.priceKind === 'avg') ? `<div class="place-card__price">${avgText(p.avgPrice != null ? p.avgPrice : p.price, p.avgPriceMax)}</div>` : ''}
       ${p.note ? `<div class="place-card__note">${esc(p.note)}</div>` : ''}
       <div class="product-card__owner">来自：${esc(p.owner)}</div>
       <a class="place-card__link" href="${esc(p.link)}" target="_blank" rel="noopener"><i class="fa-solid fa-diamond-turn-right"></i> 打开${pf.label}</a>
@@ -1358,7 +1485,11 @@ async function loadFriendFeed() {
     });
     friendFeed = { shares, cart, places };
     renderShares(); renderCart(); renderPlaces(); updateHome();
-  } catch (e) { if (e.message !== 'OFFLINE') console.warn(e.message); }
+  } catch (e) {
+    if (typeof shouldToastSyncError === 'function' && !shouldToastSyncError(e)) return;
+    if (e.status === 401) return;
+    console.warn(e.message);
+  }
 }
 
 /* =========================================================
@@ -1423,7 +1554,7 @@ async function checkHealth() {
     dot.className = 'conn-dot on';
     dot.title = '后端已连接' + (r.vision ? '（视觉识别已配置）' : '（视觉识别未配置）') + (SERVED ? '' : ' · localhost:3000');
     const h = $('#analyzeHint');
-    if (h && /启动后端|离线|未配置/.test(h.textContent)) h.textContent = '上传或拖入照片后点识别，会自动估算食物与热量。';
+    if (h) h.textContent = visionHint(!!r.vision);
   } catch (e) {
     ONLINE = false;
     dot.className = 'conn-dot off';
@@ -1474,6 +1605,6 @@ function prewarmPreview() {
   initHeroMotion();
   await checkHealth();
   setTimeout(prewarmPreview, 1200);
-  if (currentUser) { renderIdentity(); loadFromServer(); }
+  if (token || currentUser) loadFromServer();
   handleUrlJoin();
 })();

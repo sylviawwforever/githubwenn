@@ -320,9 +320,9 @@
               <button type="button" class="photo-clear" id="photoClear"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <button type="button" class="btn btn--blue" id="analyzeBtn" disabled style="width:100%">
-              <i class="fa-solid fa-wand-magic-sparkles"></i> AI 识别热量
+              <i class="fa-solid fa-wand-magic-sparkles"></i> AI 识别营养
             </button>
-            <p class="hint" id="analyzeHint">上传或拖入照片后点识别，会自动估算食物与热量。</p>
+            <p class="hint" id="analyzeHint">上传或拖入照片后点识别，会估算热量、碳水、蛋白质和膳食纤维。未配置视觉模型时，可用下方常见食物手动录入。</p>
             <div class="analyze-result" id="analyzeResult"></div>
           </div>
 
@@ -350,7 +350,12 @@
                 <input class="pill-input" type="number" id="dietKcalPer100" min="0" step="0.1" value="0" required />
               </label>
             </div>
-            <p class="hint" id="dietHint">选择常见食物会自动填充热量，也可手动修改。</p>
+            <div class="macro-fields">
+              <label class="field"><span>碳水 g</span><input class="pill-input" type="number" id="dietCarbs" min="0" step="0.1" value="0" /></label>
+              <label class="field"><span>蛋白质 g</span><input class="pill-input" type="number" id="dietProtein" min="0" step="0.1" value="0" /></label>
+              <label class="field"><span>膳食纤维 g</span><input class="pill-input" type="number" id="dietFiber" min="0" step="0.1" value="0" /></label>
+            </div>
+            <p class="hint" id="dietHint">选择常见食物会自动填充热量和营养素，也可手动修改。</p>
             <button class="btn btn--blue" type="submit" style="width:100%"><i class="fa-solid fa-plus"></i> 添加到今日饮食</button>
           </form>
         </div>
@@ -445,6 +450,11 @@
       <div class="panel">
         <h3 class="panel__title"><i class="fa-solid fa-chart-simple"></i> 今日摄入</h3>
         <div class="big-number"><span id="dietTotal">0</span><small>kcal</small></div>
+        <div class="macro-summary" id="dietMacros">
+          <span>碳水 <b id="dietCarbsTotal">0</b>g</span>
+          <span>蛋白质 <b id="dietProteinTotal">0</b>g</span>
+          <span>膳食纤维 <b id="dietFiberTotal">0</b>g</span>
+        </div>
         <ul class="record-list" id="dietList"></ul>
         <p class="empty" id="dietEmpty">今天还没记录饮食 🍚</p>
         <div class="panel__foot">
@@ -734,6 +744,7 @@
             <div class="preview-card__info">
               <div class="preview-card__name" id="placePreviewName">—</div>
               <div class="preview-card__price" id="placePreviewPlatform">—</div>
+              <div class="preview-card__price" id="placePreviewAvg">人均 —</div>
               <div class="preview-card__link" id="placePreviewLink">—</div>
             </div>
             <div class="cand-strip" id="placeCandStrip" hidden></div>
@@ -862,6 +873,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="data.js"></script>
+<script src="sync-error.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
